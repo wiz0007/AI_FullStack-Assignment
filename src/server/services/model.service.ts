@@ -45,6 +45,45 @@ export class ModelService {
     return this.getModelBySlugOrId(slug);
   }
 
+  // Sprint 3: Model Comparison Service
+  async compareModels(identifiers: string[]) {
+    if (!identifiers || identifiers.length === 0) {
+      return { models: [], missingIds: [] };
+    }
+
+    const fetchedModels = await this.repo.findByIds(identifiers);
+
+    // Map fetched models by slug and id for constant-time lookup
+    const modelMap = new Map<string, any>();
+    fetchedModels.forEach((m) => {
+      modelMap.set(m.slug.toLowerCase(), m);
+      modelMap.set(m.id.toLowerCase(), m);
+    });
+
+    const orderedModels: any[] = [];
+    const missingIds: string[] = [];
+
+    // Maintain requested ordering and identify missing IDs
+    identifiers.forEach((id) => {
+      const match = modelMap.get(id.toLowerCase());
+      if (match) {
+        // Prevent duplicate inclusions if both id and slug were passed
+        if (!orderedModels.some((m) => m.id === match.id)) {
+          orderedModels.push(match);
+        }
+      } else {
+        if (!missingIds.includes(id)) {
+          missingIds.push(id);
+        }
+      }
+    });
+
+    return {
+      models: orderedModels,
+      missingIds,
+    };
+  }
+
   async getFilterMetadata() {
     return this.repo.getFilterMetadata();
   }

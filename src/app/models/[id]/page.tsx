@@ -1,20 +1,11 @@
 import React from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  ArrowLeft,
-  Sparkles,
-  Cpu,
-  Layers,
-  DollarSign,
-  Calendar,
-  ShieldCheck,
-  CheckCircle2,
-} from "lucide-react";
+import { ArrowLeft, Cpu, Layers, DollarSign, CheckCircle2 } from "lucide-react";
 import { Container } from "@/components/layout/container";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { AddToComparisonButton } from "@/components/comparison/add-to-comparison-button";
 import { modelService } from "@/server/services/model.service";
 import { formatCompactNumber, formatCurrency } from "@/lib/utils";
 
@@ -40,8 +31,8 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
 
   return (
     <Container className="py-12 space-y-8">
-      {/* Back button */}
-      <div>
+      {/* Back button and actions */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <Link href="/models">
           <Button
             variant="ghost"
@@ -52,6 +43,15 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
             Back to Model Catalogue
           </Button>
         </Link>
+
+        <div className="flex items-center gap-2">
+          <AddToComparisonButton
+            modelId={model.slug}
+            modelName={model.name}
+            variant="outline"
+            size="sm"
+          />
+        </div>
       </div>
 
       {/* Hero Header */}
@@ -66,9 +66,17 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
           </span>
         </div>
 
-        <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-[var(--primary-text)]">
-          {model.name}
-        </h1>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-[var(--primary-text)]">
+            {model.name}
+          </h1>
+          <AddToComparisonButton
+            modelId={model.slug}
+            modelName={model.name}
+            variant="primary"
+            size="md"
+          />
+        </div>
 
         <p className="text-base text-[var(--secondary-text)] max-w-3xl leading-relaxed">
           {model.description || "No description provided for this foundation model."}
