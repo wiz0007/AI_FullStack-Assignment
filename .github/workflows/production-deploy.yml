@@ -1,0 +1,35 @@
+name: Continuous Delivery — Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Production Release & Migrations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply Database Migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_DIRECT_URL }}
+
+      - name: Deploy Production Application
+        run: npm run build
+        env:
+          NODE_ENV: "production"
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          NEXT_PUBLIC_APP_URL: "https://oneatlas.dev"

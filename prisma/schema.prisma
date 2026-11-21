@@ -1,0 +1,180 @@
+// Prisma Schema for OneAtlas
+// AI Model Discovery and Intelligence Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Company {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  description  String?
+  websiteUrl   String?
+  logoUrl      String?
+  headquarters String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  models Model[]
+
+  @@index([slug])
+  @@map("companies")
+}
+
+model Model {
+  id               String   @id @default(uuid())
+  name             String
+  slug             String   @unique
+  modelIdentifier  String   @unique
+  description      String?
+  companyId        String
+  modelType        String   @default("chat") // chat, completion, embedding, multimodal
+  contextWindow    Int?     // Context window in tokens, must be positive
+  inputModalities  String[] @default(["text"])
+  outputModalities String[] @default(["text"])
+  releaseDate      DateTime?
+  status           String   @default("active") // active, deprecated, preview
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  providers    ModelProvider[]
+  capabilities ModelCapability[]
+  benchmarks   ModelBenchmark[]
+
+  @@index([companyId])
+  @@index([slug])
+  @@index([modelIdentifier])
+  @@map("models")
+}
+
+model Provider {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  websiteUrl  String?
+  logoUrl     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  models ModelProvider[]
+
+  @@index([slug])
+  @@map("providers")
+}
+
+model ModelProvider {
+  id                      String   @id @default(uuid())
+  modelId                 String
+  providerId              String
+  providerModelIdentifier String?
+  availabilityStatus      String   @default("available") // available, limited, waitlist, retired
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  model    Model     @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  provider Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  pricing  Pricing[]
+
+  @@unique([modelId, providerId])
+  @@index([modelId])
+  @@index([providerId])
+  @@map("model_providers")
+}
+
+model Pricing {
+  id              String    @id @default(uuid())
+  modelProviderId String
+  inputPrice      Decimal   @db.Decimal(12, 6) // Price per unit (e.g. per 1M tokens)
+  outputPrice     Decimal   @db.Decimal(12, 6)
+  currency        String    @default("USD")
+  pricingUnit     String    @default("1M_TOKENS") // 1M_TOKENS, 1K_TOKENS, PER_REQUEST
+  effectiveFrom   DateTime  @default(now())
+  effectiveTo     DateTime?
+  source          String?
+  lastVerifiedAt  DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  modelProvider ModelProvider @relation(fields: [modelProviderId], references: [id], onDelete: Cascade)
+
+  @@index([modelProviderId])
+  @@index([effectiveFrom])
+  @@map("pricings")
+}
+
+model Capability {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  category    String   @default("general") // reasoning, vision, audio, coding, tool_use
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  models ModelCapability[]
+
+  @@index([slug])
+  @@map("capabilities")
+}
+
+model ModelCapability {
+  id           String   @id @default(uuid())
+  modelId      String
+  capabilityId String
+  createdAt    DateTime @default(now())
+
+  model      Model      @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  capability Capability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+
+  @@unique([modelId, capabilityId])
+  @@index([modelId])
+  @@index([capabilityId])
+  @@map("model_capabilities")
+}
+
+model Benchmark {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  category    String   @default("general") // reasoning, coding, math, knowledge
+  scoreUnit   String   @default("percentage") // percentage, score, elo
+  version     String   @default("1.0")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  modelScores ModelBenchmark[]
+
+  @@index([slug])
+  @@map("benchmarks")
+}
+
+model ModelBenchmark {
+  id             String    @id @default(uuid())
+  modelId        String
+  benchmarkId    String
+  score          Decimal   @db.Decimal(8, 4)
+  scoreUnit      String    @default("percentage")
+  datasetVersion String    @default("standard")
+  evaluationDate DateTime?
+  source         String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  model     Model     @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  benchmark Benchmark @relation(fields: [benchmarkId], references: [id], onDelete: Cascade)
+
+  @@unique([modelId, benchmarkId, datasetVersion])
+  @@index([modelId])
+  @@index([benchmarkId])
+  @@map("model_benchmarks")
+}
