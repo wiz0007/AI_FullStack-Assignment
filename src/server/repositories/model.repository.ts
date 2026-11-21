@@ -206,6 +206,38 @@ export class ModelRepository {
     });
   }
 
+  // Sprint 3: Single bounded query for multiple comparison models
+  async findByIds(identifiers: string[]) {
+    if (!identifiers || identifiers.length === 0) return [];
+
+    return prisma.model.findMany({
+      where: {
+        OR: [{ slug: { in: identifiers } }, { id: { in: identifiers } }],
+      },
+      include: {
+        company: true,
+        providers: {
+          include: {
+            provider: true,
+            pricing: {
+              orderBy: { effectiveFrom: "desc" },
+            },
+          },
+        },
+        capabilities: {
+          include: {
+            capability: true,
+          },
+        },
+        benchmarks: {
+          include: {
+            benchmark: true,
+          },
+        },
+      },
+    });
+  }
+
   async getFilterMetadata() {
     const [providers, capabilities, categories, contextStats] = await Promise.all([
       prisma.provider.findMany({

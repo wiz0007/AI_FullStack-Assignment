@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const MAX_COMPARISON_MODELS = 3;
+
 // Helper to coerce string or array of strings into string[]
 const stringOrArray = z
   .union([z.string(), z.array(z.string())])
@@ -137,3 +139,34 @@ export const globalSearchQuerySchema = z.object({
 });
 
 export type GlobalSearchQueryParams = z.infer<typeof globalSearchQuerySchema>;
+
+// Sprint 3: Model Comparison Validation Schema
+export const compareModelsQuerySchema = z
+  .object({
+    ids: z.union([z.string(), z.array(z.string())]).optional(),
+    models: z.union([z.string(), z.array(z.string())]).optional(),
+  })
+  .transform((data) => {
+    const raw = data.ids || data.models;
+    if (!raw) return { ids: [] };
+    const arr = Array.isArray(raw) ? raw : [raw];
+    const parsed = Array.from(
+      new Set(
+        arr
+          .flatMap((v) => v.split(","))
+          .map((s) => s.trim())
+          .filter(Boolean)
+      )
+    );
+    return { ids: parsed };
+  })
+  .pipe(
+    z.object({
+      ids: z
+        .array(z.string())
+        .min(1, "At least one model identifier is required for comparison")
+        .max(MAX_COMPARISON_MODELS, `Cannot compare more than ${MAX_COMPARISON_MODELS} models`),
+    })
+  );
+
+export type CompareModelsQueryParams = z.infer<typeof compareModelsQuerySchema>;
