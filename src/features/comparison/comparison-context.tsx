@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { MAX_COMPARISON_MODELS } from "@/server/validators/model.validator";
 
-interface ComparisonContextType {
+export interface ComparisonContextType {
   selectedModelIds: string[];
   addModel: (idOrSlug: string) => boolean;
   removeModel: (idOrSlug: string) => void;
@@ -15,7 +15,19 @@ interface ComparisonContextType {
   maxLimit: number;
 }
 
-const ComparisonContext = createContext<ComparisonContextType | undefined>(undefined);
+const defaultComparisonContext: ComparisonContextType = {
+  selectedModelIds: [],
+  addModel: () => false,
+  removeModel: () => {},
+  clearComparison: () => {},
+  isModelSelected: () => false,
+  canAddModel: true,
+  limitReachedMessage: null,
+  clearLimitMessage: () => {},
+  maxLimit: MAX_COMPARISON_MODELS,
+};
+
+const ComparisonContext = createContext<ComparisonContextType>(defaultComparisonContext);
 
 const STORAGE_KEY = "oneatlas_comparison_models";
 
@@ -122,8 +134,5 @@ export function ComparisonProvider({ children }: { children: React.ReactNode }) 
 
 export function useComparison(): ComparisonContextType {
   const context = useContext(ComparisonContext);
-  if (!context) {
-    throw new Error("useComparison must be used within a ComparisonProvider");
-  }
-  return context;
+  return context || defaultComparisonContext;
 }
