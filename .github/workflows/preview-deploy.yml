@@ -25,5 +25,5 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: "production"
-          DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/oneatlas_preview?schema=public' }}
           NEXT_PUBLIC_APP_URL: "https://preview.oneatlas.dev"
