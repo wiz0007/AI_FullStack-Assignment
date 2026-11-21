@@ -1,98 +1,380 @@
-import { Container } from "@/components/layout/container";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { SearchInput } from "@/components/ui/search-input";
+"use client";
 
-export default function ModelsPage() {
-  const sampleModels = [
-    {
-      name: "GPT-4o",
-      company: "OpenAI",
-      context: "128k",
-      pricing: "$2.50 / $10.00",
-      type: "Multimodal",
-      capabilities: ["Reasoning", "Code", "Vision", "Audio"],
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { Filter, RotateCcw } from "lucide-react";
+import { Container } from "@/components/layout/container";
+import { SearchInput } from "@/components/ui/search-input";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { ModelCard } from "@/components/discovery/model-card";
+import {
+  ModelFilterSidebar,
+  FilterMetadata,
+  FilterState,
+} from "@/components/discovery/model-filter-sidebar";
+import { ActiveFilters } from "@/components/discovery/active-filters";
+import { SortSelect } from "@/components/discovery/sort-select";
+import { Pagination } from "@/components/discovery/pagination";
+import { ModelSortOption } from "@/server/validators/model.validator";
+
+export default function ModelsDiscoveryPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // 1. Initial State from URL
+  const initialQ = searchParams.get("q") || searchParams.get("search") || "";
+  const initialSort = (searchParams.get("sort") as ModelSortOption) || "relevance";
+  const initialPage = parseInt(searchParams.get("page") || "1", 10) || 1;
+
+  const parseArrayParam = (key: string): string[] => {
+    const val = searchParams.get(key);
+    if (!val) return [];
+    return val
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+  };
+
+  const initialFilters: FilterState = {
+    provider: parseArrayParam("provider"),
+    category: parseArrayParam("category"),
+    capability: parseArrayParam("capability"),
+  };
+
+  // State
+  const [searchQuery, setSearchQuery] = useState(initialQ);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQ);
+  const [filters, setFilters] = useState<FilterState>(initialFilters);
+  const [sort, setSort] = useState<ModelSortOption>(initialSort);
+  const [page, setPage] = useState<number>(initialPage);
+
+  const [models, setModels] = useState<any[]>([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 12,
+    total: 0,
+    totalPages: 1,
+  });
+  const [metadata, setMetadata] = useState<FilterMetadata | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Debounce search query changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Synchronize state with URL
+  const updateURL = useCallback(
+    (q: string, flt: FilterState, s: ModelSortOption, p: number) => {
+      const params = new URLSearchParams();
+
+      if (q.trim()) params.set("q", q.trim());
+      if (flt.provider && flt.provider.length > 0) params.set("provider", flt.provider.join(","));
+      if (flt.category && flt.category.length > 0) params.set("category", flt.category.join(","));
+      if (flt.capability && flt.capability.length > 0)
+        params.set("capability", flt.capability.join(","));
+      if (s && s !== "relevance") params.set("sort", s);
+      if (p > 1) params.set("page", p.toString());
+
+      const queryStr = params.toString();
+      const target = queryStr ? `${pathname}?${queryStr}` : pathname;
+      router.replace(target, { scroll: false });
     },
-    {
-      name: "Claude 3.5 Sonnet",
-      company: "Anthropic",
-      context: "200k",
-      pricing: "$3.00 / $15.00",
-      type: "Multimodal",
-      capabilities: ["Reasoning", "Code", "Vision"],
-    },
-    {
-      name: "Gemini 1.5 Pro",
-      company: "Google",
-      context: "2,000k",
-      pricing: "$1.25 / $5.00",
-      type: "Multimodal",
-      capabilities: ["Reasoning", "Code", "Vision", "Audio"],
-    },
-    {
-      name: "Llama 3.1 405B",
-      company: "Meta AI",
-      context: "128k",
-      pricing: "$3.00 / $3.00",
-      type: "Chat",
-      capabilities: ["Reasoning", "Code", "Open-Weights"],
-    },
-    {
-      name: "DeepSeek-V3",
-      company: "DeepSeek",
-      context: "128k",
-      pricing: "$0.27 / $1.10",
-      type: "Chat",
-      capabilities: ["Reasoning", "Code", "MoE Architecture"],
-    },
-  ];
+    [pathname, router]
+  );
+
+  // Fetch filter metadata on mount
+  useEffect(() => {
+    async function loadMetadata() {
+      try {
+        const res = await fetch("/api/models/filters");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data) {
+            setMetadata(json.data);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load filter metadata:", err);
+      }
+    }
+    loadMetadata();
+  }, []);
+
+  // Fetch models
+  const fetchModels = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      const params = new URLSearchParams();
+      if (debouncedQuery.trim()) params.set("q", debouncedQuery.trim());
+      if (filters.provider?.length) params.set("provider", filters.provider.join(","));
+      if (filters.category?.length) params.set("category", filters.category.join(","));
+      if (filters.capability?.length) params.set("capability", filters.capability.join(","));
+      if (sort && sort !== "relevance") params.set("sort", sort);
+      params.set("page", page.toString());
+      params.set("limit", "12");
+
+      const res = await fetch(`/api/models?${params.toString()}`, {
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error?.message || "Failed to fetch model catalogue");
+      }
+
+      const json = await res.json();
+      if (json.success) {
+        setModels(json.data || []);
+        if (json.meta) {
+          setPagination(json.meta);
+        }
+      }
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        setError(err.message || "An unexpected error occurred");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [debouncedQuery, filters, sort, page]);
+
+  // Execute fetch and URL sync
+  useEffect(() => {
+    updateURL(debouncedQuery, filters, sort, page);
+    fetchModels();
+  }, [debouncedQuery, filters, sort, page, updateURL, fetchModels]);
+
+  // Handlers
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    setPage(1); // Reset page on search change
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    setDebouncedQuery("");
+    setPage(1);
+  };
+
+  const handleFilterChange = (newFilters: FilterState) => {
+    setFilters(newFilters);
+    setPage(1); // Reset page on filter change
+  };
+
+  const handleRemoveFilter = (key: keyof FilterState, val?: string) => {
+    if (!val) {
+      setFilters((prev) => ({ ...prev, [key]: [] }));
+    } else {
+      setFilters((prev) => {
+        const current = prev[key];
+        if (Array.isArray(current)) {
+          return {
+            ...prev,
+            [key]: current.filter((x: string) => x !== val),
+          };
+        }
+        return {
+          ...prev,
+          [key]: undefined,
+        };
+      });
+    }
+    setPage(1);
+  };
+
+  const handleClearAllFilters = () => {
+    setFilters({ provider: [], category: [], capability: [] });
+    setSearchQuery("");
+    setDebouncedQuery("");
+    setSort("relevance");
+    setPage(1);
+  };
+
+  const handleSortChange = (newSort: ModelSortOption) => {
+    setSort(newSort);
+    setPage(1); // Reset page on sort change
+  };
+
+  // Determine empty state message
+  const hasSearch = debouncedQuery.trim() !== "";
+  const hasFilter =
+    (filters.provider && filters.provider.length > 0) ||
+    (filters.category && filters.category.length > 0) ||
+    (filters.capability && filters.capability.length > 0);
+
+  const activeFilterCount =
+    (filters.provider?.length || 0) +
+    (filters.category?.length || 0) +
+    (filters.capability?.length || 0);
 
   return (
-    <Container className="py-12 space-y-8">
-      <div>
-        <Badge variant="accent" className="mb-2">
-          Foundation • Sprint 1
-        </Badge>
-        <h1 className="text-3xl font-bold tracking-tight text-[var(--primary-text)]">
-          AI Models Directory
-        </h1>
-        <p className="text-sm text-[var(--secondary-text)] mt-1">
-          Explore and filter frontier language and multimodal models with verified specifications.
-        </p>
+    <Container className="py-10 space-y-8">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-[var(--border-color)]">
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--accent)]">
+            Explore & Discover
+          </span>
+          <h1 className="text-3xl font-extrabold tracking-tight text-[var(--primary-text)] mt-1">
+            Foundation AI Models
+          </h1>
+          <p className="text-sm text-[var(--secondary-text)] mt-1 max-w-xl">
+            Browse, filter, and compare multimodal intelligence models across cloud inference
+            providers.
+          </p>
+        </div>
+
+        {/* Search Bar */}
+        <div className="w-full md:w-80">
+          <SearchInput
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            onClear={handleClearSearch}
+            placeholder="Search models, providers, specs..."
+          />
+        </div>
       </div>
 
-      <div className="max-w-md">
-        <SearchInput placeholder="Search models by name, company, or capability..." />
-      </div>
+      {/* Main Layout: Sidebar + Grid */}
+      <div className="flex flex-col lg:flex-row gap-8 items-start">
+        {/* Desktop Sidebar & Mobile Drawer */}
+        <ModelFilterSidebar
+          metadata={metadata}
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onReset={handleClearAllFilters}
+          isMobileOpen={mobileFilterOpen}
+          onMobileClose={() => setMobileFilterOpen(false)}
+        />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {sampleModels.map((m) => (
-          <Card key={m.name} className="flex flex-col justify-between">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <Badge variant="outline">{m.company}</Badge>
-                <span className="text-xs font-mono text-[var(--secondary-text)]">
-                  {m.context} ctx
+        {/* Content Area */}
+        <div className="flex-1 w-full space-y-6">
+          {/* Controls Bar: Mobile filter button, Active chips, Sort */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMobileFilterOpen(true)}
+                  className="lg:hidden text-xs gap-1.5"
+                >
+                  <Filter className="w-3.5 h-3.5 text-[var(--accent)]" />
+                  <span>Filters {activeFilterCount > 0 ? `(${activeFilterCount})` : ""}</span>
+                </Button>
+                <span className="text-xs text-[var(--secondary-text)] font-medium">
+                  {isLoading ? (
+                    "Loading catalogue..."
+                  ) : (
+                    <>
+                      Found{" "}
+                      <span className="font-semibold text-[var(--primary-text)]">
+                        {pagination.total}
+                      </span>{" "}
+                      {pagination.total === 1 ? "model" : "models"}
+                    </>
+                  )}
                 </span>
               </div>
-              <CardTitle className="mt-2">{m.name}</CardTitle>
-              <CardDescription>{m.type} model architecture</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-xs font-medium text-[var(--secondary-text)]">
-                Pricing (In / Out per 1M):{" "}
-                <span className="text-[var(--primary-text)] font-semibold">{m.pricing}</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {m.capabilities.map((cap) => (
-                  <Badge key={cap} variant="default" className="text-[10px]">
-                    {cap}
-                  </Badge>
+
+              <SortSelect value={sort} onChange={handleSortChange} />
+            </div>
+
+            {/* Active Filter Chips */}
+            <ActiveFilters
+              filters={filters}
+              metadata={metadata}
+              onRemoveFilter={handleRemoveFilter}
+              onClearAll={handleClearAllFilters}
+            />
+          </div>
+
+          {/* Results Grid / States */}
+          {error ? (
+            <ErrorState
+              title="Failed to Load Model Catalogue"
+              message={error}
+              retry={fetchModels}
+            />
+          ) : isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-64 rounded-xl border border-[var(--border-color)] p-5 space-y-4"
+                >
+                  <div className="flex justify-between">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-8 w-full rounded-lg" />
+                  <div className="flex gap-2 pt-2">
+                    <Skeleton className="h-5 w-16" />
+                    <Skeleton className="h-5 w-16" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : models.length === 0 ? (
+            <EmptyState
+              title={
+                hasSearch && hasFilter
+                  ? `No models match "${debouncedQuery}" with the active filters`
+                  : hasSearch
+                    ? `No models found matching "${debouncedQuery}"`
+                    : hasFilter
+                      ? "No models match the selected filters"
+                      : "No models in catalogue"
+              }
+              description={
+                hasSearch || hasFilter
+                  ? "Try checking your spelling, removing some filters, or clearing the search query."
+                  : "The model repository is currently being updated. Please check back shortly."
+              }
+              actionLabel={hasSearch || hasFilter ? "Clear Filters & Search" : undefined}
+              onAction={hasSearch || hasFilter ? handleClearAllFilters : undefined}
+            />
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {models.map((m) => (
+                  <ModelCard key={m.id} model={m} />
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        ))}
+
+              {/* Pagination */}
+              <Pagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                total={pagination.total}
+                limit={pagination.limit}
+                onPageChange={(newPage) => setPage(newPage)}
+              />
+            </>
+          )}
+        </div>
       </div>
     </Container>
   );
