@@ -1,0 +1,29 @@
+name: Continuous Delivery — Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  preview:
+    name: Generate Preview Deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Preview Bundle
+        run: npm run build
+        env:
+          NODE_ENV: "production"
+          DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/oneatlas_preview?schema=public' }}
+          NEXT_PUBLIC_APP_URL: "https://preview.oneatlas.dev"
