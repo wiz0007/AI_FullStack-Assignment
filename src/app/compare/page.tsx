@@ -51,6 +51,12 @@ function CompareContent() {
 
   // Active key for comparison IDs
   const activeKey = selectedModelIds.length > 0 ? selectedModelIds.join(",") : queryParam;
+  const activeIds = activeKey
+    ? activeKey
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
 
   // Sync current active IDs to URL search param
   useEffect(() => {

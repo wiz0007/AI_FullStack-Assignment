@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { MAX_COMPARISON_MODELS } from "@/server/validators/model.validator";
 
-export interface ComparisonContextType {
+interface ComparisonContextType {
   selectedModelIds: string[];
   addModel: (idOrSlug: string) => boolean;
   removeModel: (idOrSlug: string) => void;
@@ -15,19 +15,7 @@ export interface ComparisonContextType {
   maxLimit: number;
 }
 
-const defaultContext: ComparisonContextType = {
-  selectedModelIds: [],
-  addModel: () => false,
-  removeModel: () => {},
-  clearComparison: () => {},
-  isModelSelected: () => false,
-  canAddModel: true,
-  limitReachedMessage: null,
-  clearLimitMessage: () => {},
-  maxLimit: MAX_COMPARISON_MODELS,
-};
-
-const ComparisonContext = createContext<ComparisonContextType>(defaultContext);
+const ComparisonContext = createContext<ComparisonContextType | undefined>(undefined);
 
 const STORAGE_KEY = "oneatlas_comparison_models";
 
@@ -39,13 +27,11 @@ export function ComparisonProvider({ children }: { children: React.ReactNode }) 
   // Load persisted selection from localStorage on mount
   useEffect(() => {
     try {
-      if (typeof window !== "undefined") {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed)) {
-            setSelectedModelIds(parsed.slice(0, MAX_COMPARISON_MODELS));
-          }
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setSelectedModelIds(parsed.slice(0, MAX_COMPARISON_MODELS));
         }
       }
     } catch (e) {
@@ -59,9 +45,7 @@ export function ComparisonProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (!isInitialized) return;
     try {
-      if (typeof window !== "undefined") {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedModelIds));
-      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedModelIds));
     } catch (e) {
       console.warn("Could not persist comparison selection:", e);
     }
@@ -138,5 +122,8 @@ export function ComparisonProvider({ children }: { children: React.ReactNode }) 
 
 export function useComparison(): ComparisonContextType {
   const context = useContext(ComparisonContext);
-  return context || defaultContext;
+  if (!context) {
+    throw new Error("useComparison must be used within a ComparisonProvider");
+  }
+  return context;
 }
