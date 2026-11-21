@@ -24,7 +24,12 @@ describe("Model Service Integration Workflows (Workflows A-G)", () => {
     } as unknown as ModelRepository;
 
     const service = new ModelService(mockRepo);
-    const result = await service.listModels({ page: 1, limit: 10, status: "active" });
+    const result = await service.listModels({
+      page: 1,
+      limit: 10,
+      status: "active",
+      sort: "relevance",
+    });
 
     expect(result.items.length).toBe(1);
     expect(result.pagination.total).toBe(1);
@@ -32,20 +37,23 @@ describe("Model Service Integration Workflows (Workflows A-G)", () => {
   });
 
   it("Workflow B: should retrieve model by slug with relationships", async () => {
+    const mockModel = {
+      id: "m-2",
+      name: "Claude 3.5 Sonnet",
+      slug: "claude-3-5-sonnet",
+      company: { name: "Anthropic" },
+      providers: [
+        {
+          provider: { name: "Anthropic Console API" },
+          pricing: [{ inputPrice: "3.00", outputPrice: "15.00" }],
+        },
+      ],
+    };
+
     const mockRepo = {
       findMany: vi.fn(),
-      findBySlug: vi.fn().mockResolvedValue({
-        id: "m-2",
-        name: "Claude 3.5 Sonnet",
-        slug: "claude-3-5-sonnet",
-        company: { name: "Anthropic" },
-        providers: [
-          {
-            provider: { name: "Anthropic Console API" },
-            pricing: [{ inputPrice: "3.00", outputPrice: "15.00" }],
-          },
-        ],
-      }),
+      findBySlug: vi.fn().mockResolvedValue(mockModel),
+      findByIdOrSlug: vi.fn().mockResolvedValue(mockModel),
       create: vi.fn(),
     } as unknown as ModelRepository;
 
