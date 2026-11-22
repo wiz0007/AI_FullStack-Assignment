@@ -142,15 +142,16 @@ model ModelCapability {
 }
 
 model Benchmark {
-  id          String   @id @default(uuid())
-  name        String
-  slug        String   @unique
-  description String?
-  category    String   @default("general") // reasoning, coding, math, knowledge
-  scoreUnit   String   @default("percentage") // percentage, score, elo
-  version     String   @default("1.0")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(uuid())
+  name           String
+  slug           String   @unique
+  description    String?
+  category       String   @default("general") // reasoning, coding, math, knowledge
+  scoreUnit      String   @default("percentage") // percentage, score, elo
+  scoreDirection String   @default("HIGHER_IS_BETTER") // HIGHER_IS_BETTER, LOWER_IS_BETTER
+  version        String   @default("1.0")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   modelScores ModelBenchmark[]
 

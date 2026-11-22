@@ -480,17 +480,42 @@ async function main() {
 
       const pConfig = m.pricing[provSlug as keyof typeof m.pricing];
       if (pConfig) {
-        await prisma.pricing.create({
-          data: {
+        const existingPricing = await prisma.pricing.findFirst({
+          where: {
             modelProviderId: modelProvider.id,
-            inputPrice: pConfig.input,
-            outputPrice: pConfig.output,
-            currency: "USD",
-            pricingUnit: "1M_TOKENS",
-            source: "official_api_pricing",
-            lastVerifiedAt: new Date(),
+            effectiveTo: null,
           },
         });
+
+        if (existingPricing) {
+          // If pricing changed, update, but preserve lastVerifiedAt unless price actually changed
+          if (
+            !existingPricing.inputPrice.equals(pConfig.input) ||
+            !existingPricing.outputPrice.equals(pConfig.output)
+          ) {
+            await prisma.pricing.update({
+              where: { id: existingPricing.id },
+              data: {
+                inputPrice: pConfig.input,
+                outputPrice: pConfig.output,
+                lastVerifiedAt: new Date("2024-11-01T00:00:00Z"),
+              },
+            });
+          }
+        } else {
+          await prisma.pricing.create({
+            data: {
+              modelProviderId: modelProvider.id,
+              inputPrice: pConfig.input,
+              outputPrice: pConfig.output,
+              currency: "USD",
+              pricingUnit: "1M_TOKENS",
+              source: "official_api_pricing",
+              effectiveFrom: new Date("2024-05-01T00:00:00Z"),
+              lastVerifiedAt: new Date("2024-11-01T00:00:00Z"),
+            },
+          });
+        }
       }
     }
 
@@ -537,7 +562,7 @@ async function main() {
           score: bScore.score,
           scoreUnit: bench.scoreUnit,
           datasetVersion: "standard",
-          evaluationDate: new Date(),
+          evaluationDate: new Date("2024-10-01T00:00:00Z"),
           source: "official_technical_report",
         },
       });

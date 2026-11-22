@@ -2,7 +2,6 @@ import { z } from "zod";
 
 export const MAX_COMPARISON_MODELS = 3;
 
-// Helper to coerce string or array of strings into string[]
 const stringOrArray = z
   .union([z.string(), z.array(z.string())])
   .optional()
@@ -26,10 +25,16 @@ export const modelSortOptions = [
   "name_desc",
   "releaseDate_desc",
   "releaseDate_asc",
+  "date_desc",
+  "date_asc",
   "contextWindow_desc",
   "contextWindow_asc",
+  "context_desc",
+  "context_asc",
   "pricing_asc",
   "pricing_desc",
+  "price_asc",
+  "price_desc",
 ] as const;
 
 export type ModelSortOption = (typeof modelSortOptions)[number];
@@ -46,6 +51,7 @@ export const modelQuerySchema = z
       .max(100, "Search query must be 100 characters or less")
       .optional()
       .transform((val) => (val ? val.trim() : undefined)),
+    company: stringOrArray,
     provider: stringOrArray,
     category: stringOrArray,
     capability: stringOrArray,
@@ -115,10 +121,11 @@ export const createModelSchema = z.object({
   modelIdentifier: z.string().min(1, "Model identifier is required"),
   description: z.string().optional(),
   companyId: z.string().uuid("Invalid company ID"),
-  modelType: z.enum(["chat", "completion", "embedding", "multimodal"]).default("chat"),
-  contextWindow: z.number().int().positive("Context window must be positive").optional(),
+  modelType: z.string().default("chat"),
+  contextWindow: z.number().int().positive().optional(),
   inputModalities: z.array(z.string()).default(["text"]),
   outputModalities: z.array(z.string()).default(["text"]),
+  releaseDate: z.coerce.date().optional(),
   status: z.enum(["active", "deprecated", "preview"]).default("active"),
 });
 

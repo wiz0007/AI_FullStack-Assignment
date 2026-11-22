@@ -24,18 +24,21 @@ import { useComparison } from "@/features/comparison/comparison-context";
 function CompareContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { selectedModelIds, removeModel, clearComparison, addModel, maxLimit } = useComparison();
+  const { selectedModelIds, removeModel, clearComparison, addModel, setComparison, maxLimit } =
+    useComparison();
 
   const [modelsData, setModelsData] = useState<any[]>([]);
   const [missingIds, setMissingIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
+  const [copyError, setCopyError] = useState<boolean>(false);
+  const [excessWarning, setExcessWarning] = useState<string | null>(null);
 
   // Read URL query parameters
   const queryParam = searchParams.get("models") || searchParams.get("ids") || "";
 
-  // Initialize from URL or Context
+  // Initialize from URL: URL parameters take strict precedence over local storage
   useEffect(() => {
     if (!queryParam) return;
     const queryIds = queryParam
@@ -43,11 +46,16 @@ function CompareContent() {
       .map((s) => s.trim())
       .filter(Boolean);
     if (queryIds.length > 0) {
-      queryIds.slice(0, maxLimit).forEach((id) => {
-        addModel(id);
-      });
+      if (queryIds.length > maxLimit) {
+        setExcessWarning(
+          `You provided ${queryIds.length} models in the comparison URL. Only the first ${maxLimit} (${queryIds.slice(0, maxLimit).join(", ")}) were loaded because the comparison limit is ${maxLimit}.`
+        );
+      } else {
+        setExcessWarning(null);
+      }
+      setComparison(queryIds.slice(0, maxLimit));
     }
-  }, [queryParam, maxLimit, addModel]);
+  }, [queryParam, maxLimit, setComparison]);
 
   // Active key for comparison IDs
   const activeKey = selectedModelIds.length > 0 ? selectedModelIds.join(",") : queryParam;
@@ -124,13 +132,17 @@ function CompareContent() {
   const handleShare = async () => {
     const url = window.location.href;
     try {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) {
+        throw new Error("Clipboard API not available");
+      }
       await navigator.clipboard.writeText(url);
       setCopied(true);
+      setCopyError(false);
       setTimeout(() => setCopied(false), 2500);
     } catch (e) {
-      // Fallback
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
+      setCopied(false);
+      setCopyError(true);
+      setTimeout(() => setCopyError(false), 3000);
     }
   };
 
@@ -162,6 +174,11 @@ function CompareContent() {
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-500" />
                   <span className="text-emerald-500 font-semibold">Link Copied!</span>
+                </>
+              ) : copyError ? (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="text-amber-500 font-semibold">Copy Failed</span>
                 </>
               ) : (
                 <>
@@ -198,9 +215,20 @@ function CompareContent() {
         </h1>
         <p className="text-sm text-[var(--secondary-text)] max-w-2xl leading-relaxed">
           Evaluate architectures, context capacities, inference pricing, and benchmark scores across
-          selected frontier LLMs with real-time difference detection.
+          selected frontier LLMs with interactive difference detection.
         </p>
       </div>
+
+      {/* Excessive Models Warning Banner */}
+      {excessWarning && (
+        <div className="p-4 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300 flex items-start gap-3 text-xs">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
+          <div className="space-y-1">
+            <p className="font-semibold">Comparison Limit Notice</p>
+            <p>{excessWarning}</p>
+          </div>
+        </div>
+      )}
 
       {/* Missing IDs Warning Banner */}
       {missingIds.length > 0 && (

@@ -1,13 +1,25 @@
 import React from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Cpu, Layers, DollarSign, CheckCircle2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Cpu,
+  Layers,
+  DollarSign,
+  CheckCircle2,
+  Trophy,
+  Calendar,
+  Building2,
+  ExternalLink,
+} from "lucide-react";
 import { Container } from "@/components/layout/container";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AddToComparisonButton } from "@/components/comparison/add-to-comparison-button";
 import { modelService } from "@/server/services/model.service";
 import { formatCompactNumber, formatCurrency } from "@/lib/utils";
+import { getRepresentativeModelPrice, getActiveProviderPricing } from "@/lib/pricing";
+import { NotFoundError } from "@/lib/errors";
 
 interface ModelDetailPageProps {
   params: {
@@ -19,15 +31,18 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
   let model: any = null;
   try {
     model = await modelService.getModelBySlugOrId(params.id);
-  } catch (err) {
-    notFound();
+  } catch (err: any) {
+    if (err instanceof NotFoundError || err?.statusCode === 404 || err?.name === "NotFoundError") {
+      notFound();
+    }
+    throw err;
   }
 
   if (!model) {
     notFound();
   }
 
-  const primaryPricing = model.providers?.[0]?.pricing?.[0];
+  const primaryPricing = getRepresentativeModelPrice(model);
 
   return (
     <Container className="py-12 space-y-8">
@@ -57,7 +72,11 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
       {/* Hero Header */}
       <div className="space-y-4 pb-6 border-b border-[var(--border-color)]">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent">{model.company.name}</Badge>
+          <Link href={`/companies/${model.company.slug}`}>
+            <Badge variant="accent" className="hover:opacity-80 transition-opacity cursor-pointer">
+              {model.company.name}
+            </Badge>
+          </Link>
           <Badge variant="outline" className="capitalize">
             {model.modelType}
           </Badge>
@@ -130,6 +149,41 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
             </div>
           </div>
         </div>
+
+        {/* Modalities Section (Workstream E1) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-[var(--border-color)]">
+          <div className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface)] space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--secondary-text)]">
+              Input Modalities
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {(model.inputModalities && model.inputModalities.length > 0
+                ? model.inputModalities
+                : ["text"]
+              ).map((mod: string) => (
+                <Badge key={mod} variant="default" className="text-xs capitalize">
+                  {mod}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface)] space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--secondary-text)]">
+              Output Modalities
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {(model.outputModalities && model.outputModalities.length > 0
+                ? model.outputModalities
+                : ["text"]
+              ).map((mod: string) => (
+                <Badge key={mod} variant="default" className="text-xs capitalize">
+                  {mod}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Available Providers Table */}
@@ -145,26 +199,48 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
                   <th className="p-4">Provider</th>
                   <th className="p-4">Input / 1M Tokens</th>
                   <th className="p-4">Output / 1M Tokens</th>
+                  <th className="p-4">Effective Date</th>
                   <th className="p-4">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)] text-[var(--primary-text)]">
                 {model.providers.map((mp: any) => {
-                  const pricing = mp.pricing?.[0];
+                  const pricing = getActiveProviderPricing(mp);
+                  const isAvailable =
+                    mp.availabilityStatus === "active" || mp.availabilityStatus === "available";
                   return (
                     <tr
                       key={mp.id}
                       className="hover:bg-[var(--secondary-surface)]/50 transition-colors"
                     >
-                      <td className="p-4 font-semibold">{mp.provider.name}</td>
-                      <td className="p-4 font-mono">
-                        {pricing?.inputPrice ? formatCurrency(pricing.inputPrice) : "Unavailable"}
+                      <td className="p-4 font-semibold">
+                        <Link
+                          href={`/providers/${mp.provider.slug}`}
+                          className="hover:text-[var(--accent)] transition-colors inline-flex items-center gap-1"
+                        >
+                          {mp.provider.name}
+                        </Link>
                       </td>
                       <td className="p-4 font-mono">
-                        {pricing?.outputPrice ? formatCurrency(pricing.outputPrice) : "Unavailable"}
+                        {pricing?.inputPrice
+                          ? formatCurrency(pricing.inputPrice.toString())
+                          : "Unavailable"}
+                      </td>
+                      <td className="p-4 font-mono">
+                        {pricing?.outputPrice
+                          ? formatCurrency(pricing.outputPrice.toString())
+                          : "Unavailable"}
+                      </td>
+                      <td className="p-4 text-[var(--secondary-text)] font-mono text-[11px]">
+                        {pricing?.effectiveFrom
+                          ? new Date(pricing.effectiveFrom).toLocaleDateString()
+                          : "Current"}
                       </td>
                       <td className="p-4">
-                        <Badge variant="success" className="capitalize">
+                        <Badge
+                          variant={isAvailable ? "success" : "outline"}
+                          className="capitalize text-[10px]"
+                        >
                           {mp.availabilityStatus || "Available"}
                         </Badge>
                       </td>
@@ -177,6 +253,80 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
         ) : (
           <p className="text-xs text-[var(--secondary-text)]">
             No provider mappings currently registered for this model.
+          </p>
+        )}
+      </div>
+
+      {/* Benchmark Evaluations */}
+      <div className="space-y-4 pt-4 border-t border-[var(--border-color)]">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-[var(--primary-text)] flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-[var(--accent)]" />
+            Benchmark Evaluations & Leaderboards
+          </h2>
+          <Link
+            href="/rankings"
+            className="text-xs text-[var(--accent)] hover:underline font-medium"
+          >
+            View Full Rankings &rarr;
+          </Link>
+        </div>
+
+        {model.benchmarks && model.benchmarks.length > 0 ? (
+          <div className="overflow-x-auto rounded-xl border border-[var(--border-color)] bg-[var(--surface)]">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[var(--secondary-surface)] text-[var(--secondary-text)] uppercase tracking-wider border-b border-[var(--border-color)]">
+                <tr>
+                  <th className="p-4">Benchmark</th>
+                  <th className="p-4">Category</th>
+                  <th className="p-4">Score</th>
+                  <th className="p-4">Dataset Version</th>
+                  <th className="p-4">Evaluation Date</th>
+                  <th className="p-4">Source</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border-color)] text-[var(--primary-text)]">
+                {model.benchmarks.map((bm: any) => (
+                  <tr
+                    key={bm.id}
+                    className="hover:bg-[var(--secondary-surface)]/50 transition-colors"
+                  >
+                    <td className="p-4 font-semibold">
+                      <Link
+                        href={`/rankings?benchmark=${bm.benchmark.slug}`}
+                        className="hover:text-[var(--accent)] transition-colors"
+                      >
+                        {bm.benchmark.name}
+                      </Link>
+                    </td>
+                    <td className="p-4">
+                      <Badge variant="outline" className="text-[10px] capitalize">
+                        {bm.benchmark.category}
+                      </Badge>
+                    </td>
+                    <td className="p-4 font-mono font-bold text-sm text-[var(--accent)]">
+                      {parseFloat(bm.score).toLocaleString()}{" "}
+                      {bm.scoreUnit === "percentage" ? "%" : ""}
+                    </td>
+                    <td className="p-4 text-[var(--secondary-text)] font-mono text-[11px]">
+                      {bm.datasetVersion || "Standard"}
+                    </td>
+                    <td className="p-4 text-[var(--secondary-text)] font-mono text-[11px]">
+                      {bm.evaluationDate
+                        ? new Date(bm.evaluationDate).toLocaleDateString()
+                        : "Verified"}
+                    </td>
+                    <td className="p-4 text-[var(--secondary-text)] text-[11px]">
+                      {bm.source || "Official Evaluation"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-xs text-[var(--secondary-text)]">
+            No standardized benchmark results registered yet for this model.
           </p>
         )}
       </div>
