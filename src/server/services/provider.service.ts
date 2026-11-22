@@ -1,6 +1,7 @@
 import { providerRepository, ProviderRepository } from "../repositories/provider.repository";
 import { ProviderQueryParams } from "../validators/provider.validator";
 import { NotFoundError } from "@/lib/errors";
+import { getActiveProviderPricing } from "@/lib/pricing";
 
 export class ProviderService {
   constructor(private repo: ProviderRepository = providerRepository) {}
@@ -52,13 +53,13 @@ export class ProviderService {
       websiteUrl: provider.websiteUrl,
       logoUrl: provider.logoUrl,
       models: provider.models.map((mp) => {
-        const activePricing = mp.pricing?.[0];
+        const activePricing = getActiveProviderPricing({ ...mp, provider });
         return {
           modelId: mp.model.id,
           name: mp.model.name,
           slug: mp.model.slug,
           modelIdentifier: mp.model.modelIdentifier,
-          providerModelIdentifier: mp.providerModelIdentifier || mp.model.modelIdentifier,
+          providerModelIdentifier: mp.providerModelIdentifier || null,
           modelType: mp.model.modelType,
           company: {
             name: mp.model.company?.name || "AI Lab",
@@ -68,12 +69,18 @@ export class ProviderService {
           pricing: activePricing
             ? {
                 inputPrice: activePricing.inputPrice.toString(),
-                outputPrice: activePricing.outputPrice.toString(),
-                currency: activePricing.currency,
-                pricingUnit: activePricing.pricingUnit,
-                effectiveFrom: activePricing.effectiveFrom.toISOString(),
-                lastVerifiedAt: activePricing.lastVerifiedAt.toISOString(),
-                source: activePricing.source,
+                outputPrice: activePricing.outputPrice
+                  ? activePricing.outputPrice.toString()
+                  : null,
+                currency: activePricing.currency || "USD",
+                pricingUnit: activePricing.pricingUnit || "1M_TOKENS",
+                effectiveFrom: activePricing.effectiveFrom
+                  ? new Date(activePricing.effectiveFrom).toISOString()
+                  : new Date().toISOString(),
+                lastVerifiedAt: activePricing.lastVerifiedAt
+                  ? new Date(activePricing.lastVerifiedAt).toISOString()
+                  : null,
+                source: activePricing.source || null,
               }
             : null,
           capabilities: (mp.model.capabilities || []).map((c) => ({

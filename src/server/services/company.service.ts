@@ -1,6 +1,7 @@
 import { companyRepository, CompanyRepository } from "../repositories/company.repository";
 import { CompanyQueryParams } from "../validators/company.validator";
 import { NotFoundError } from "@/lib/errors";
+import { getRepresentativeModelPrice } from "@/lib/pricing";
 
 export class CompanyService {
   constructor(private repo: CompanyRepository = companyRepository) {}
@@ -54,7 +55,7 @@ export class CompanyService {
       logoUrl: company.logoUrl,
       headquarters: company.headquarters,
       models: company.models.map((m) => {
-        const primaryPricing = m.providers?.[0]?.pricing?.[0];
+        const repPricing = getRepresentativeModelPrice(m);
         return {
           id: m.id,
           name: m.name,
@@ -66,12 +67,13 @@ export class CompanyService {
           inputModalities: m.inputModalities,
           outputModalities: m.outputModalities,
           releaseDate: m.releaseDate ? m.releaseDate.toISOString() : null,
-          pricing: primaryPricing
+          pricing: repPricing
             ? {
-                inputPrice: primaryPricing.inputPrice.toString(),
-                outputPrice: primaryPricing.outputPrice.toString(),
-                currency: primaryPricing.currency,
-                pricingUnit: primaryPricing.pricingUnit,
+                inputPrice: repPricing.inputPrice,
+                outputPrice: repPricing.outputPrice,
+                currency: repPricing.currency,
+                pricingUnit: repPricing.pricingUnit,
+                providerName: repPricing.providerName,
               }
             : null,
           capabilities: (m.capabilities || []).map((c) => ({

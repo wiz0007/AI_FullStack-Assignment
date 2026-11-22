@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { CreateModelInput, ModelQueryParams } from "../validators/model.validator";
 import { Prisma } from "@prisma/client";
+import { getCurrentPricingPrismaWhere, getRepresentativeModelPrice } from "@/lib/pricing";
 
 export class ModelRepository {
   async findMany(params: ModelQueryParams) {
@@ -52,10 +53,13 @@ export class ModelRepository {
           priceFilter.lte = new Prisma.Decimal(params.maxPrice);
         }
 
+        const currentPricingCondition = getCurrentPricingPrismaWhere();
         providerCondition.pricing = {
           some: {
+            ...currentPricingCondition,
+            currency: "USD",
+            pricingUnit: "1M_TOKENS",
             inputPrice: priceFilter,
-            OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date() } }],
           },
         };
       }
@@ -105,10 +109,8 @@ export class ModelRepository {
         include: {
           provider: true,
           pricing: {
-            where: {
-              OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date() } }],
-            },
-            orderBy: { effectiveFrom: "desc" as const },
+            where: getCurrentPricingPrismaWhere(),
+            orderBy: [{ effectiveFrom: "desc" as const }, { id: "asc" as const }],
           },
         },
       },
@@ -124,7 +126,7 @@ export class ModelRepository {
       },
     };
 
-    // If sorting by pricing across relations, fetch all matching models and sort in-memory
+    // If sorting by pricing across relations, fetch all matching models and sort using canonical policy
     if (isPricingSort) {
       const allMatching = await prisma.model.findMany({
         where,
@@ -132,29 +134,13 @@ export class ModelRepository {
       });
 
       const total = allMatching.length;
-
-      const getLowestValidInputPrice = (m: any): number | null => {
-        let lowest: number | null = null;
-        for (const mp of m.providers || []) {
-          for (const pr of mp.pricing || []) {
-            if (pr.currency === "USD" && pr.pricingUnit === "1M_TOKENS") {
-              const price = parseFloat(pr.inputPrice.toString());
-              if (!isNaN(price)) {
-                if (lowest === null || price < lowest) {
-                  lowest = price;
-                }
-              }
-            }
-          }
-        }
-        return lowest;
-      };
-
       const isAsc = params.sort === "pricing_asc" || params.sort === "price_asc";
 
       allMatching.sort((a, b) => {
-        const priceA = getLowestValidInputPrice(a);
-        const priceB = getLowestValidInputPrice(b);
+        const repA = getRepresentativeModelPrice(a);
+        const repB = getRepresentativeModelPrice(b);
+        const priceA = repA ? parseFloat(repA.inputPrice) : null;
+        const priceB = repB ? parseFloat(repB.inputPrice) : null;
 
         // Unavailable prices are placed last in both ascending and descending
         if (priceA === null && priceB === null) return a.id.localeCompare(b.id);
@@ -236,10 +222,8 @@ export class ModelRepository {
           include: {
             provider: true,
             pricing: {
-              where: {
-                OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date() } }],
-              },
-              orderBy: { effectiveFrom: "desc" },
+              where: getCurrentPricingPrismaWhere(),
+              orderBy: [{ effectiveFrom: "desc" }, { id: "asc" }],
             },
           },
         },
@@ -266,10 +250,8 @@ export class ModelRepository {
           include: {
             provider: true,
             pricing: {
-              where: {
-                OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date() } }],
-              },
-              orderBy: { effectiveFrom: "desc" },
+              where: getCurrentPricingPrismaWhere(),
+              orderBy: [{ effectiveFrom: "desc" }, { id: "asc" }],
             },
           },
         },
@@ -301,10 +283,8 @@ export class ModelRepository {
           include: {
             provider: true,
             pricing: {
-              where: {
-                OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date() } }],
-              },
-              orderBy: { effectiveFrom: "desc" },
+              where: getCurrentPricingPrismaWhere(),
+              orderBy: [{ effectiveFrom: "desc" }, { id: "asc" }],
             },
           },
         },

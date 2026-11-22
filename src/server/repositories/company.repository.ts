@@ -17,8 +17,28 @@ export class CompanyRepository {
 
     const skip = (params.page - 1) * params.limit;
 
-    // Fetch companies with model count and latest model release date
-    const [companies, total] = await Promise.all([
+    // Database-level sorting configuration
+    const orderBy: Prisma.CompanyOrderByWithRelationInput[] = [];
+    switch (params.sort) {
+      case "name_asc":
+        orderBy.push({ name: "asc" }, { id: "asc" });
+        break;
+      case "name_desc":
+        orderBy.push({ name: "desc" }, { id: "asc" });
+        break;
+      case "models_desc":
+        orderBy.push({ models: { _count: "desc" } }, { name: "asc" });
+        break;
+      case "release_desc":
+        orderBy.push({ createdAt: "desc" }, { name: "asc" });
+        break;
+      default:
+        orderBy.push({ models: { _count: "desc" } }, { name: "asc" });
+        break;
+    }
+
+    // Database-level filtering, sorting, and pagination
+    const [items, total] = await Promise.all([
       prisma.company.findMany({
         where,
         include: {
@@ -37,34 +57,12 @@ export class CompanyRepository {
             take: 3,
           },
         },
+        orderBy,
+        skip,
+        take: params.limit,
       }),
       prisma.company.count({ where }),
     ]);
-
-    // Apply sorting
-    const sorted = [...companies].sort((a, b) => {
-      switch (params.sort) {
-        case "name_asc":
-          return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
-        case "name_desc":
-          return b.name.localeCompare(a.name) || a.id.localeCompare(b.id);
-        case "models_desc":
-          if (b._count.models !== a._count.models) {
-            return b._count.models - a._count.models;
-          }
-          return a.name.localeCompare(b.name);
-        case "release_desc": {
-          const dateA = a.models[0]?.releaseDate ? new Date(a.models[0].releaseDate).getTime() : 0;
-          const dateB = b.models[0]?.releaseDate ? new Date(b.models[0].releaseDate).getTime() : 0;
-          if (dateA !== dateB) return dateB - dateA;
-          return a.name.localeCompare(b.name);
-        }
-        default:
-          return a.name.localeCompare(b.name);
-      }
-    });
-
-    const items = sorted.slice(skip, skip + params.limit);
 
     return {
       items,

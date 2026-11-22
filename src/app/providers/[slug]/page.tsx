@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { AddToComparisonButton } from "@/components/comparison/add-to-comparison-button";
 import { providerService } from "@/server/services/provider.service";
 import { formatCurrency } from "@/lib/utils";
+import { NotFoundError } from "@/lib/errors";
 
 interface ProviderDetailPageProps {
   params: {
@@ -19,8 +20,11 @@ export default async function ProviderDetailPage({ params }: ProviderDetailPageP
   let provider: any = null;
   try {
     provider = await providerService.getProviderBySlug(params.slug);
-  } catch (err) {
-    notFound();
+  } catch (err: any) {
+    if (err instanceof NotFoundError || err?.statusCode === 404 || err?.name === "NotFoundError") {
+      notFound();
+    }
+    throw err;
   }
 
   if (!provider) {
@@ -92,7 +96,7 @@ export default async function ProviderDetailPage({ params }: ProviderDetailPageP
             Hosted Models & Inference Pricing
           </h2>
           <p className="text-xs text-[var(--secondary-text)] mt-0.5">
-            Real-time pricing per 1M tokens and verified availability for endpoints hosted by{" "}
+            Verified pricing per 1M tokens and active availability for endpoints hosted by{" "}
             {provider.name}.
           </p>
         </div>
@@ -146,7 +150,9 @@ export default async function ProviderDetailPage({ params }: ProviderDetailPageP
                       </div>
                     </td>
                     <td className="p-4 font-mono text-[11px] text-[var(--secondary-text)]">
-                      {item.providerModelIdentifier}
+                      {item.providerModelIdentifier || (
+                        <span className="italic text-[var(--secondary-text)]">Unavailable</span>
+                      )}
                     </td>
                     <td className="p-4 font-mono font-bold text-[var(--accent)]">
                       {item.pricing?.inputPrice
@@ -164,7 +170,15 @@ export default async function ProviderDetailPage({ params }: ProviderDetailPageP
                         : "Current"}
                     </td>
                     <td className="p-4">
-                      <Badge variant="success" className="capitalize text-[10px]">
+                      <Badge
+                        variant={
+                          item.availabilityStatus === "active" ||
+                          item.availabilityStatus === "available"
+                            ? "success"
+                            : "outline"
+                        }
+                        className="capitalize text-[10px]"
+                      >
                         {item.availabilityStatus || "Available"}
                       </Badge>
                     </td>

@@ -43,6 +43,28 @@ export class BenchmarkRepository {
       benchmarkId: benchmark.id,
     };
 
+    if (params.benchmarkVersion && benchmark.version !== params.benchmarkVersion) {
+      return {
+        benchmark: {
+          id: benchmark.id,
+          name: benchmark.name,
+          slug: benchmark.slug,
+          description: benchmark.description,
+          category: benchmark.category,
+          scoreUnit: benchmark.scoreUnit,
+          scoreDirection: benchmark.scoreDirection,
+          version: params.benchmarkVersion,
+        },
+        rankings: [],
+        pagination: {
+          page: params.page,
+          limit: params.limit,
+          total: 0,
+          totalPages: 1,
+        },
+      };
+    }
+
     if (params.category) {
       where.model = {
         modelType: params.category,

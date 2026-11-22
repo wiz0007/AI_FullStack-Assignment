@@ -9,6 +9,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { AddToComparisonButton } from "@/components/comparison/add-to-comparison-button";
 import { companyService } from "@/server/services/company.service";
 import { formatCompactNumber, formatCurrency } from "@/lib/utils";
+import { NotFoundError } from "@/lib/errors";
 
 interface CompanyDetailPageProps {
   params: {
@@ -20,8 +21,11 @@ export default async function CompanyDetailPage({ params }: CompanyDetailPagePro
   let company: any = null;
   try {
     company = await companyService.getCompanyBySlug(params.slug);
-  } catch (err) {
-    notFound();
+  } catch (err: any) {
+    if (err instanceof NotFoundError || err?.statusCode === 404 || err?.name === "NotFoundError") {
+      notFound();
+    }
+    throw err;
   }
 
   if (!company) {

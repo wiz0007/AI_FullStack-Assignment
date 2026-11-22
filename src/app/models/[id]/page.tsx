@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button";
 import { AddToComparisonButton } from "@/components/comparison/add-to-comparison-button";
 import { modelService } from "@/server/services/model.service";
 import { formatCompactNumber, formatCurrency } from "@/lib/utils";
+import { getRepresentativeModelPrice, getActiveProviderPricing } from "@/lib/pricing";
+import { NotFoundError } from "@/lib/errors";
 
 interface ModelDetailPageProps {
   params: {
@@ -29,15 +31,18 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
   let model: any = null;
   try {
     model = await modelService.getModelBySlugOrId(params.id);
-  } catch (err) {
-    notFound();
+  } catch (err: any) {
+    if (err instanceof NotFoundError || err?.statusCode === 404 || err?.name === "NotFoundError") {
+      notFound();
+    }
+    throw err;
   }
 
   if (!model) {
     notFound();
   }
 
-  const primaryPricing = model.providers?.[0]?.pricing?.[0];
+  const primaryPricing = getRepresentativeModelPrice(model);
 
   return (
     <Container className="py-12 space-y-8">
@@ -144,6 +149,41 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
             </div>
           </div>
         </div>
+
+        {/* Modalities Section (Workstream E1) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-[var(--border-color)]">
+          <div className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface)] space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--secondary-text)]">
+              Input Modalities
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {(model.inputModalities && model.inputModalities.length > 0
+                ? model.inputModalities
+                : ["text"]
+              ).map((mod: string) => (
+                <Badge key={mod} variant="default" className="text-xs capitalize">
+                  {mod}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface)] space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--secondary-text)]">
+              Output Modalities
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {(model.outputModalities && model.outputModalities.length > 0
+                ? model.outputModalities
+                : ["text"]
+              ).map((mod: string) => (
+                <Badge key={mod} variant="default" className="text-xs capitalize">
+                  {mod}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Available Providers Table */}
@@ -165,7 +205,9 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
               </thead>
               <tbody className="divide-y divide-[var(--border-color)] text-[var(--primary-text)]">
                 {model.providers.map((mp: any) => {
-                  const pricing = mp.pricing?.[0];
+                  const pricing = getActiveProviderPricing(mp);
+                  const isAvailable =
+                    mp.availabilityStatus === "active" || mp.availabilityStatus === "available";
                   return (
                     <tr
                       key={mp.id}
@@ -180,10 +222,14 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
                         </Link>
                       </td>
                       <td className="p-4 font-mono">
-                        {pricing?.inputPrice ? formatCurrency(pricing.inputPrice) : "Unavailable"}
+                        {pricing?.inputPrice
+                          ? formatCurrency(pricing.inputPrice.toString())
+                          : "Unavailable"}
                       </td>
                       <td className="p-4 font-mono">
-                        {pricing?.outputPrice ? formatCurrency(pricing.outputPrice) : "Unavailable"}
+                        {pricing?.outputPrice
+                          ? formatCurrency(pricing.outputPrice.toString())
+                          : "Unavailable"}
                       </td>
                       <td className="p-4 text-[var(--secondary-text)] font-mono text-[11px]">
                         {pricing?.effectiveFrom
@@ -191,7 +237,10 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
                           : "Current"}
                       </td>
                       <td className="p-4">
-                        <Badge variant="success" className="capitalize">
+                        <Badge
+                          variant={isAvailable ? "success" : "outline"}
+                          className="capitalize text-[10px]"
+                        >
                           {mp.availabilityStatus || "Available"}
                         </Badge>
                       </td>

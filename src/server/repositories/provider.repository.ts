@@ -17,7 +17,25 @@ export class ProviderRepository {
 
     const skip = (params.page - 1) * params.limit;
 
-    const [providers, total] = await Promise.all([
+    // Database-level sorting configuration
+    const orderBy: Prisma.ProviderOrderByWithRelationInput[] = [];
+    switch (params.sort) {
+      case "name_asc":
+        orderBy.push({ name: "asc" }, { id: "asc" });
+        break;
+      case "name_desc":
+        orderBy.push({ name: "desc" }, { id: "asc" });
+        break;
+      case "models_desc":
+        orderBy.push({ models: { _count: "desc" } }, { name: "asc" });
+        break;
+      default:
+        orderBy.push({ models: { _count: "desc" } }, { name: "asc" });
+        break;
+    }
+
+    // Database-level filtering, sorting, and pagination
+    const [items, total] = await Promise.all([
       prisma.provider.findMany({
         where,
         include: {
@@ -40,27 +58,12 @@ export class ProviderRepository {
             take: 4,
           },
         },
+        orderBy,
+        skip,
+        take: params.limit,
       }),
       prisma.provider.count({ where }),
     ]);
-
-    const sorted = [...providers].sort((a, b) => {
-      switch (params.sort) {
-        case "name_asc":
-          return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
-        case "name_desc":
-          return b.name.localeCompare(a.name) || a.id.localeCompare(b.id);
-        case "models_desc":
-          if (b._count.models !== a._count.models) {
-            return b._count.models - a._count.models;
-          }
-          return a.name.localeCompare(b.name);
-        default:
-          return a.name.localeCompare(b.name);
-      }
-    });
-
-    const items = sorted.slice(skip, skip + params.limit);
 
     return {
       items,

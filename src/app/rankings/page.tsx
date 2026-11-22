@@ -27,7 +27,10 @@ function RankingsContent() {
 
   const [benchmarks, setBenchmarks] = useState<BenchmarkMeta[]>([]);
   const [selectedBenchmarkSlug, setSelectedBenchmarkSlug] = useState<string>("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedDomain, setSelectedDomain] = useState<string>("all");
+  const [selectedModelType, setSelectedModelType] = useState<string>(
+    searchParams.get("modelType") || searchParams.get("category") || "all"
+  );
   const [rankings, setRankings] = useState<RankingItem[]>([]);
   const [isLoadingBenchmarks, setIsLoadingBenchmarks] = useState<boolean>(true);
   const [isLoadingRankings, setIsLoadingRankings] = useState<boolean>(true);
@@ -63,13 +66,20 @@ function RankingsContent() {
     loadBenchmarks();
   }, [searchParams]);
 
-  // 2. Fetch rankings when selected benchmark changes
-  const fetchRankings = useCallback(async (slug: string) => {
+  // 2. Fetch rankings when selected benchmark or model type changes
+  const fetchRankings = useCallback(async (slug: string, modelType: string) => {
     if (!slug) return;
     setIsLoadingRankings(true);
     setError(null);
     try {
-      const res = await fetch(`/api/rankings?benchmark=${encodeURIComponent(slug)}&limit=50`);
+      const params = new URLSearchParams();
+      params.set("benchmark", slug);
+      params.set("limit", "50");
+      if (modelType && modelType !== "all") {
+        params.set("category", modelType);
+      }
+
+      const res = await fetch(`/api/rankings?${params.toString()}`);
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.error?.message || "Failed to load leaderboard rankings");
@@ -87,23 +97,30 @@ function RankingsContent() {
 
   useEffect(() => {
     if (selectedBenchmarkSlug) {
-      fetchRankings(selectedBenchmarkSlug);
+      fetchRankings(selectedBenchmarkSlug, selectedModelType);
       // Synchronize URL
       const params = new URLSearchParams(searchParams.toString());
       params.set("benchmark", selectedBenchmarkSlug);
+      if (selectedModelType && selectedModelType !== "all") {
+        params.set("modelType", selectedModelType);
+      } else {
+        params.delete("modelType");
+        params.delete("category");
+      }
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     }
-  }, [selectedBenchmarkSlug, fetchRankings, pathname, router, searchParams]);
+  }, [selectedBenchmarkSlug, selectedModelType, fetchRankings, pathname, router, searchParams]);
 
-  // Categories list
-  const categories = ["all", ...Array.from(new Set(benchmarks.map((b) => b.category)))];
+  // Benchmark Domains list
+  const domains = ["all", ...Array.from(new Set(benchmarks.map((b) => b.category)))];
 
   const filteredBenchmarks = benchmarks.filter((b) => {
-    if (selectedCategory === "all") return true;
-    return b.category.toLowerCase() === selectedCategory.toLowerCase();
+    if (selectedDomain === "all") return true;
+    return b.category.toLowerCase() === selectedDomain.toLowerCase();
   });
 
   const currentBenchmark = benchmarks.find((b) => b.slug === selectedBenchmarkSlug);
+  const modelTypes = ["all", "multimodal", "language", "code"];
 
   return (
     <Container className="py-10 space-y-8">
@@ -124,24 +141,49 @@ function RankingsContent() {
         </div>
       </div>
 
-      {/* Benchmark Selector & Category Filter */}
+      {/* Benchmark Selector & Filters */}
       <div className="space-y-4">
-        {/* Category Tabs */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-[var(--secondary-text)] mr-1">Category:</span>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors ${
-                selectedCategory === cat
-                  ? "bg-[var(--accent)] text-white shadow-sm"
-                  : "bg-[var(--surface)] text-[var(--secondary-text)] border border-[var(--border-color)] hover:text-[var(--primary-text)]"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+        {/* Domain and Model Type Filter Rows */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface)]">
+          {/* Benchmark Domain Tabs */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-[var(--secondary-text)] mr-1">
+              Benchmark Domain:
+            </span>
+            {domains.map((dom) => (
+              <button
+                key={dom}
+                onClick={() => setSelectedDomain(dom)}
+                className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors ${
+                  selectedDomain === dom
+                    ? "bg-[var(--accent)] text-white shadow-sm"
+                    : "bg-[var(--secondary-surface)] text-[var(--secondary-text)] border border-[var(--border-color)] hover:text-[var(--primary-text)]"
+                }`}
+              >
+                {dom}
+              </button>
+            ))}
+          </div>
+
+          {/* Model Category / Type Filter */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-[var(--secondary-text)] mr-1">
+              Model Category:
+            </span>
+            {modelTypes.map((mt) => (
+              <button
+                key={mt}
+                onClick={() => setSelectedModelType(mt)}
+                className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors ${
+                  selectedModelType === mt
+                    ? "bg-[var(--primary-text)] text-[var(--surface)] shadow-sm"
+                    : "bg-[var(--secondary-surface)] text-[var(--secondary-text)] border border-[var(--border-color)] hover:text-[var(--primary-text)]"
+                }`}
+              >
+                {mt === "all" ? "All Types" : mt}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Benchmark Chips */}
@@ -206,7 +248,9 @@ function RankingsContent() {
         <ErrorState
           title="Failed to Load Rankings"
           message={error}
-          retry={() => selectedBenchmarkSlug && fetchRankings(selectedBenchmarkSlug)}
+          retry={() =>
+            selectedBenchmarkSlug && fetchRankings(selectedBenchmarkSlug, selectedModelType)
+          }
         />
       ) : isLoadingRankings ? (
         <div className="space-y-3">
