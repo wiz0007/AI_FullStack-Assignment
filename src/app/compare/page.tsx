@@ -24,7 +24,8 @@ import { useComparison } from "@/features/comparison/comparison-context";
 function CompareContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { selectedModelIds, removeModel, clearComparison, addModel, maxLimit } = useComparison();
+  const { selectedModelIds, removeModel, clearComparison, addModel, setComparison, maxLimit } =
+    useComparison();
 
   const [modelsData, setModelsData] = useState<any[]>([]);
   const [missingIds, setMissingIds] = useState<string[]>([]);
@@ -35,7 +36,7 @@ function CompareContent() {
   // Read URL query parameters
   const queryParam = searchParams.get("models") || searchParams.get("ids") || "";
 
-  // Initialize from URL or Context
+  // Initialize from URL: URL parameters take strict precedence over local storage
   useEffect(() => {
     if (!queryParam) return;
     const queryIds = queryParam
@@ -43,11 +44,9 @@ function CompareContent() {
       .map((s) => s.trim())
       .filter(Boolean);
     if (queryIds.length > 0) {
-      queryIds.slice(0, maxLimit).forEach((id) => {
-        addModel(id);
-      });
+      setComparison(queryIds.slice(0, maxLimit));
     }
-  }, [queryParam, maxLimit, addModel]);
+  }, [queryParam, maxLimit, setComparison]);
 
   // Active key for comparison IDs
   const activeKey = selectedModelIds.length > 0 ? selectedModelIds.join(",") : queryParam;

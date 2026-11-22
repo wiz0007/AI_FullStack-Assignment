@@ -20,6 +20,17 @@ function parseEnv(): Env {
     };
   }
 
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (isProduction) {
+    const result = envSchema.safeParse(process.env);
+    if (!result.success) {
+      const errors = result.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ");
+      throw new Error(`Production environment configuration error: ${errors}`);
+    }
+    return result.data;
+  }
+
   const result = envSchema.safeParse(process.env);
   if (!result.success) {
     const errors = result.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ");

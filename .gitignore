@@ -1,7 +1,3 @@
-# Docs (Ignored in Git as requested)
-docs/
-/docs/
-
 # Dependencies
 node_modules/
 /.pnp

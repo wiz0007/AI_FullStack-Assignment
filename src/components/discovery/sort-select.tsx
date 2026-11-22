@@ -21,10 +21,12 @@ export function SortSelect({ value, onChange, className = "" }: SortSelectProps)
         <option value="relevance">Default (Relevance)</option>
         <option value="name_asc">Name: A to Z</option>
         <option value="name_desc">Name: Z to A</option>
-        <option value="releaseDate_desc">Release Date: Newest</option>
-        <option value="releaseDate_asc">Release Date: Oldest</option>
+        <option value="pricing_asc">Price: Low to High</option>
+        <option value="pricing_desc">Price: High to Low</option>
         <option value="contextWindow_desc">Context Window: Largest</option>
         <option value="contextWindow_asc">Context Window: Smallest</option>
+        <option value="releaseDate_desc">Release Date: Newest</option>
+        <option value="releaseDate_asc">Release Date: Oldest</option>
       </select>
     </div>
   );
