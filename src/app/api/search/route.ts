@@ -4,6 +4,8 @@ import { globalSearchQuerySchema } from "@/server/validators/model.validator";
 import { successResponse, errorResponse } from "@/lib/api-response";
 import { ValidationError } from "@/lib/errors";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;

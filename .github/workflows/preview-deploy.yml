@@ -21,9 +21,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check Database Configuration
+        id: check_db
+        run: |
+          if [ -z "${{ secrets.PREVIEW_DATABASE_URL }}" ]; then
+            echo "::warning::PREVIEW_DATABASE_URL is not configured in repository secrets. Skipping preview database migrations."
+            echo "has_db=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_db=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Apply Preview Database Migrations
+        if: steps.check_db.outputs.has_db == 'true'
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.PREVIEW_DIRECT_URL || secrets.PREVIEW_DATABASE_URL }}
+
       - name: Build Preview Bundle
         run: npm run build
         env:
           NODE_ENV: "production"
           DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/oneatlas_preview?schema=public' }}
+          DIRECT_URL: ${{ secrets.PREVIEW_DIRECT_URL || secrets.PREVIEW_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/oneatlas_preview?schema=public' }}
           NEXT_PUBLIC_APP_URL: "https://preview.oneatlas.dev"
