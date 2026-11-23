@@ -2,6 +2,19 @@ import { z } from "zod";
 
 export const MAX_COMPARISON_MODELS = 3;
 
+export const CANONICAL_MODEL_TYPES = [
+  "multimodal",
+  "chat",
+  "embedding",
+  "code",
+  "audio",
+  "reasoning",
+] as const;
+export type CanonicalModelType = (typeof CANONICAL_MODEL_TYPES)[number];
+
+export const CANONICAL_MODEL_STATUSES = ["active", "preview", "deprecated", "retired"] as const;
+export type CanonicalModelStatus = (typeof CANONICAL_MODEL_STATUSES)[number];
+
 const stringOrArray = z
   .union([z.string(), z.array(z.string())])
   .optional()
@@ -121,12 +134,12 @@ export const createModelSchema = z.object({
   modelIdentifier: z.string().min(1, "Model identifier is required"),
   description: z.string().optional(),
   companyId: z.string().uuid("Invalid company ID"),
-  modelType: z.string().default("chat"),
+  modelType: z.enum(CANONICAL_MODEL_TYPES).default("chat"),
   contextWindow: z.number().int().positive().optional(),
   inputModalities: z.array(z.string()).default(["text"]),
   outputModalities: z.array(z.string()).default(["text"]),
   releaseDate: z.coerce.date().optional(),
-  status: z.enum(["active", "deprecated", "preview"]).default("active"),
+  status: z.enum(CANONICAL_MODEL_STATUSES).default("active"),
 });
 
 export type CreateModelInput = z.infer<typeof createModelSchema>;

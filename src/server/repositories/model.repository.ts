@@ -121,42 +121,76 @@ export class ModelRepository {
       },
       benchmarks: {
         include: {
-          benchmark: true,
+          benchmarkVersion: {
+            include: {
+              benchmark: true,
+            },
+          },
         },
       },
     };
 
-    // If sorting by pricing across relations, fetch all matching models and sort using canonical policy
+    // S2-02: Database-driven pricing sorting and pagination using PostgreSQL aggregation
     if (isPricingSort) {
-      const allMatching = await prisma.model.findMany({
+      const isAsc = params.sort === "pricing_asc" || params.sort === "price_asc";
+      const now = new Date();
+      const skip = (params.page - 1) * params.limit;
+
+      // 1. Get total count of matching models in the database
+      const total = await prisma.model.count({ where });
+
+      // 2. Retrieve matching model IDs using Prisma's where to preserve 100% filter parity
+      const matchingIds = await prisma.model.findMany({
         where,
+        select: { id: true },
+      });
+      const idList = matchingIds.map((m) => m.id);
+
+      if (idList.length === 0) {
+        return { items: [], total: 0 };
+      }
+
+      // 3. Execute PostgreSQL query with JOIN and MIN aggregation on current valid USD pricing
+      const providerFilterSql =
+        params.provider && params.provider.length > 0
+          ? Prisma.sql`AND pr.slug IN (${Prisma.join(params.provider)})`
+          : Prisma.empty;
+
+      const sortedRows = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT m.id
+        FROM models m
+        LEFT JOIN model_providers mp ON mp."modelId" = m.id
+        LEFT JOIN providers pr ON pr.id = mp."providerId"
+        LEFT JOIN pricings p ON p."modelProviderId" = mp.id 
+          AND p.currency = 'USD' 
+          AND p."pricingUnit" = '1M_TOKENS'
+          AND p."effectiveFrom" <= ${now}
+          AND (p."effectiveTo" IS NULL OR p."effectiveTo" >= ${now})
+          ${providerFilterSql}
+        WHERE m.id IN (${Prisma.join(idList)})
+        GROUP BY m.id
+        ORDER BY 
+          CASE WHEN MIN(p."inputPrice") IS NULL THEN 1 ELSE 0 END ASC,
+          ${isAsc ? Prisma.sql`MIN(p."inputPrice") ASC` : Prisma.sql`MIN(p."inputPrice") DESC`},
+          m.id ASC
+        OFFSET ${skip}
+        LIMIT ${params.limit}
+      `;
+
+      const pagedIds = sortedRows.map((r) => r.id);
+      if (pagedIds.length === 0) {
+        return { items: [], total };
+      }
+
+      // 4. Fetch the full records for this specific page (at most limit records)
+      const pageModels = await prisma.model.findMany({
+        where: { id: { in: pagedIds } },
         include: commonInclude,
       });
 
-      const total = allMatching.length;
-      const isAsc = params.sort === "pricing_asc" || params.sort === "price_asc";
-
-      allMatching.sort((a, b) => {
-        const repA = getRepresentativeModelPrice(a);
-        const repB = getRepresentativeModelPrice(b);
-        const priceA = repA ? parseFloat(repA.inputPrice) : null;
-        const priceB = repB ? parseFloat(repB.inputPrice) : null;
-
-        // Unavailable prices are placed last in both ascending and descending
-        if (priceA === null && priceB === null) return a.id.localeCompare(b.id);
-        if (priceA === null) return 1;
-        if (priceB === null) return -1;
-
-        if (priceA !== priceB) {
-          return isAsc ? priceA - priceB : priceB - priceA;
-        }
-
-        // Deterministic secondary tie-breaker
-        return a.id.localeCompare(b.id);
-      });
-
-      const skip = (params.page - 1) * params.limit;
-      const items = allMatching.slice(skip, skip + params.limit);
+      // Preserve exact database-sorted ordering
+      const idMap = new Map(pageModels.map((m) => [m.id, m]));
+      const items = pagedIds.map((id) => idMap.get(id)!).filter(Boolean);
 
       return { items, total };
     }
@@ -234,7 +268,11 @@ export class ModelRepository {
         },
         benchmarks: {
           include: {
-            benchmark: true,
+            benchmarkVersion: {
+              include: {
+                benchmark: true,
+              },
+            },
           },
         },
       },
@@ -262,7 +300,11 @@ export class ModelRepository {
         },
         benchmarks: {
           include: {
-            benchmark: true,
+            benchmarkVersion: {
+              include: {
+                benchmark: true,
+              },
+            },
           },
         },
       },
@@ -295,7 +337,11 @@ export class ModelRepository {
         },
         benchmarks: {
           include: {
-            benchmark: true,
+            benchmarkVersion: {
+              include: {
+                benchmark: true,
+              },
+            },
           },
         },
       },
@@ -313,7 +359,11 @@ export class ModelRepository {
           name: true,
           slug: true,
           _count: {
-            select: { models: true },
+            select: {
+              models: {
+                where: { status: "active" },
+              },
+            },
           },
         },
         orderBy: { name: "asc" },
@@ -327,7 +377,11 @@ export class ModelRepository {
           name: true,
           slug: true,
           _count: {
-            select: { models: true },
+            select: {
+              models: {
+                where: { model: { status: "active" } },
+              },
+            },
           },
         },
         orderBy: { name: "asc" },
@@ -342,7 +396,11 @@ export class ModelRepository {
           slug: true,
           category: true,
           _count: {
-            select: { models: true },
+            select: {
+              models: {
+                where: { model: { status: "active" } },
+              },
+            },
           },
         },
         orderBy: { name: "asc" },

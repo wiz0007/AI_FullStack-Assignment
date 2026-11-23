@@ -97,23 +97,39 @@ export function Navbar() {
               </button>
             </div>
           </div>
-
-          {/* Mobile Dropdown Menu */}
-          {mobileMenuOpen && (
-            <div className="md:hidden border-t border-[var(--border-color)] py-3 space-y-1">
-              {appConfig.navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="block px-3 py-2 rounded-md text-sm font-medium text-[var(--primary-text)] hover:bg-[var(--secondary-surface)]"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          )}
         </Container>
+
+        {/* Mobile Floating Overlay Menu (Floats on top, does not push page content) */}
+        {mobileMenuOpen && (
+          <>
+            {/* Backdrop overlay */}
+            <div
+              className="fixed inset-0 top-16 z-40 bg-black/40 backdrop-blur-sm md:hidden animate-in fade-in duration-200"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-hidden="true"
+            />
+            {/* Floating Menu Drawer */}
+            <div className="fixed top-16 left-0 right-0 z-50 md:hidden border-b border-[var(--border-color)] bg-[var(--surface)] p-4 shadow-2xl space-y-1 animate-in slide-in-from-top-2 duration-200">
+              {appConfig.navItems.map((item) => {
+                const isActive = pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`block px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      isActive
+                        ? "bg-[var(--secondary-surface)] text-[var(--accent)] font-semibold"
+                        : "text-[var(--primary-text)] hover:bg-[var(--secondary-surface)]"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </>
+        )}
       </header>
 
       {/* Global Search Dialog Modal */}

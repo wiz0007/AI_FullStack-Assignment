@@ -178,57 +178,133 @@ async function main() {
     });
   }
 
-  // 4. Seed Benchmarks
+  // 4. Seed Benchmarks & Benchmark Versions
   const benchmarksData = [
     {
       slug: "mmlu",
       name: "MMLU",
       description: "Massive Multitask Language Understanding across 57 academic subjects.",
       category: "knowledge",
-      scoreUnit: "percentage",
-      version: "5-shot",
+      versions: [
+        {
+          version: "5-shot",
+          scoreUnit: "percentage",
+          scoreDirection: "HIGHER_IS_BETTER",
+          description: "Standard 5-shot prompt evaluation",
+          source: "https://github.com/hendrycks/test",
+        },
+        {
+          version: "0-shot-cot",
+          scoreUnit: "percentage",
+          scoreDirection: "HIGHER_IS_BETTER",
+          description: "Zero-shot chain-of-thought protocol",
+          source: "https://github.com/hendrycks/test",
+        },
+      ],
     },
     {
       slug: "humaneval",
       name: "HumanEval",
       description: "Python code generation evaluation test set.",
       category: "coding",
-      scoreUnit: "percentage",
-      version: "pass@1",
+      versions: [
+        {
+          version: "pass@1",
+          scoreUnit: "percentage",
+          scoreDirection: "HIGHER_IS_BETTER",
+          description: "Standard pass@1 Python unit-test benchmark",
+          source: "https://github.com/openai/human-eval",
+        },
+      ],
     },
     {
       slug: "gsm8k",
       name: "GSM8K",
       description: "Grade School Math 8K word problems.",
       category: "math",
-      scoreUnit: "percentage",
-      version: "maj@1",
+      versions: [
+        {
+          version: "maj@1",
+          scoreUnit: "percentage",
+          scoreDirection: "HIGHER_IS_BETTER",
+          description: "Majority voting @ 1 evaluation protocol",
+          source: "https://github.com/openai/grade-school-math",
+        },
+      ],
     },
     {
       slug: "math-benchmark",
       name: "MATH 500",
       description: "Challenging high school and collegiate competition mathematics.",
       category: "math",
-      scoreUnit: "percentage",
-      version: "500-test",
+      versions: [
+        {
+          version: "500-test",
+          scoreUnit: "percentage",
+          scoreDirection: "HIGHER_IS_BETTER",
+          description: "Subset of 500 challenging problems",
+          source: "https://github.com/hendrycks/math",
+        },
+      ],
     },
     {
       slug: "gpqa",
       name: "GPQA Diamond",
       description: "Google-proof PhD-level multiple-choice science questions.",
       category: "reasoning",
-      scoreUnit: "percentage",
-      version: "diamond",
+      versions: [
+        {
+          version: "diamond",
+          scoreUnit: "percentage",
+          scoreDirection: "HIGHER_IS_BETTER",
+          description: "Curated high-difficulty diamond evaluation subset",
+          source: "https://arxiv.org/abs/2311.12022",
+        },
+      ],
     },
   ];
 
   const benchmarks: Record<string, any> = {};
+  const benchmarkVersions: Record<string, any> = {};
+
   for (const b of benchmarksData) {
-    benchmarks[b.slug] = await prisma.benchmark.upsert({
+    const { versions, ...benchmarkFields } = b;
+    const bench = await prisma.benchmark.upsert({
       where: { slug: b.slug },
-      update: b,
-      create: b,
+      update: benchmarkFields,
+      create: benchmarkFields,
     });
+    benchmarks[b.slug] = bench;
+
+    for (const v of versions) {
+      const bv = await prisma.benchmarkVersion.upsert({
+        where: {
+          benchmarkId_version: {
+            benchmarkId: bench.id,
+            version: v.version,
+          },
+        },
+        update: {
+          scoreUnit: v.scoreUnit,
+          scoreDirection: v.scoreDirection,
+          description: v.description,
+          source: v.source,
+        },
+        create: {
+          benchmarkId: bench.id,
+          version: v.version,
+          scoreUnit: v.scoreUnit,
+          scoreDirection: v.scoreDirection,
+          description: v.description,
+          source: v.source,
+        },
+      });
+      // Key by benchmarkSlug:version and benchmarkSlug (defaulting to first version)
+      benchmarkVersions[`${b.slug}:${v.version}`] = bv;
+      if (!benchmarkVersions[b.slug]) {
+        benchmarkVersions[b.slug] = bv;
+      }
+    }
   }
 
   // 5. Seed Models
@@ -511,6 +587,7 @@ async function main() {
               currency: "USD",
               pricingUnit: "1M_TOKENS",
               source: "official_api_pricing",
+              dataClassification: "CURATED",
               effectiveFrom: new Date("2024-05-01T00:00:00Z"),
               lastVerifiedAt: new Date("2024-11-01T00:00:00Z"),
             },
@@ -539,33 +616,45 @@ async function main() {
       });
     }
 
-    // Model <-> Benchmarks
+    // Model <-> Benchmarks & Versions
     for (const bScore of m.benchmarkScores) {
-      const bench = benchmarks[bScore.benchmarkSlug];
-      if (!bench) continue;
+      const bv = benchmarkVersions[bScore.benchmarkSlug];
+      if (!bv) continue;
 
-      await prisma.modelBenchmark.upsert({
+      const existingMb = await prisma.modelBenchmark.findFirst({
         where: {
-          modelId_benchmarkId_datasetVersion: {
-            modelId: model.id,
-            benchmarkId: bench.id,
-            datasetVersion: "standard",
-          },
-        },
-        update: {
-          score: bScore.score,
-          scoreUnit: bench.scoreUnit,
-        },
-        create: {
           modelId: model.id,
-          benchmarkId: bench.id,
-          score: bScore.score,
-          scoreUnit: bench.scoreUnit,
+          benchmarkVersionId: bv.id,
           datasetVersion: "standard",
-          evaluationDate: new Date("2024-10-01T00:00:00Z"),
-          source: "official_technical_report",
         },
       });
+
+      if (existingMb) {
+        await prisma.modelBenchmark.update({
+          where: { id: existingMb.id },
+          data: {
+            score: bScore.score,
+            scoreUnit: bv.scoreUnit,
+            dataClassification: "CURATED",
+            isPublished: true,
+          },
+        });
+      } else {
+        await prisma.modelBenchmark.create({
+          data: {
+            modelId: model.id,
+            benchmarkVersionId: bv.id,
+            score: bScore.score,
+            scoreUnit: bv.scoreUnit,
+            datasetVersion: "standard",
+            evaluationDate: new Date("2024-10-01T00:00:00Z"),
+            source: bv.source || "official_technical_report",
+            evaluator: "Official Technical Report",
+            isPublished: true,
+            dataClassification: "CURATED",
+          },
+        });
+      }
     }
   }
 

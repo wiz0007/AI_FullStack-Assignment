@@ -83,8 +83,17 @@ jobs:
       - name: Apply Database Migrations on PostgreSQL
         run: npx prisma migrate deploy
 
+      - name: Seed Database
+        run: npx prisma db seed
+
       - name: Run Automated Test Suites
         run: npm run test
 
       - name: Build Next.js Application
         run: npm run build
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E Tests
+        run: npx playwright test

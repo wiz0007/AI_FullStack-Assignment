@@ -69,19 +69,25 @@ export function ComparisonBar() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-2 ml-auto shrink-0">
             <Button
               variant="ghost"
               size="sm"
               onClick={clearComparison}
-              className="h-8 text-xs text-[var(--secondary-text)] hover:text-red-500 px-2"
+              className="h-8 text-xs text-[var(--secondary-text)] hover:text-red-500 px-2 shrink-0"
             >
               Clear
             </Button>
-            <Link href={compareUrl}>
-              <Button variant="primary" size="sm" className="h-8 gap-1.5 text-xs">
-                <span>Compare Side-by-Side</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+            <Link href={compareUrl} className="shrink-0">
+              <Button
+                variant="primary"
+                size="sm"
+                className="h-8 gap-1.5 text-xs whitespace-nowrap shrink-0"
+                title="Compare Side-by-Side"
+              >
+                <span className="hidden sm:inline">Compare Side-by-Side</span>
+                <span className="sm:hidden">Compare</span>
+                <ArrowRight className="w-3.5 h-3.5 shrink-0" />
               </Button>
             </Link>
           </div>

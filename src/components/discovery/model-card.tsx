@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { AddToComparisonButton } from "@/components/comparison/add-to-comparison-button";
 import { formatCompactNumber, formatCurrency } from "@/lib/utils";
-import { getRepresentativeModelPrice } from "@/lib/pricing";
+import { getRepresentativeModelPrice, PricingRecordLike } from "@/lib/pricing";
 
 export interface ModelCardProps {
   model: {
@@ -37,12 +37,7 @@ export interface ModelCardProps {
         name: string;
         slug: string;
       };
-      pricing?: Array<{
-        inputPrice: string | number;
-        outputPrice: string | number;
-        currency: string;
-        pricingUnit: string;
-      }>;
+      pricing?: PricingRecordLike[];
     }>;
     capabilities?: Array<{
       capability: {
@@ -52,11 +47,12 @@ export interface ModelCardProps {
       };
     }>;
   };
+  selectedProviders?: string[];
 }
 
-export function ModelCard({ model }: ModelCardProps) {
-  // Canonical representative pricing across all providers
-  const primaryPricing = getRepresentativeModelPrice(model);
+export function ModelCard({ model, selectedProviders }: ModelCardProps) {
+  // Canonical representative pricing across all providers (or selected providers if filter active)
+  const primaryPricing = getRepresentativeModelPrice(model, new Date(), selectedProviders);
   const hasPricing = primaryPricing !== null;
 
   // Format context window (e.g. 128k ctx, or Unavailable)

@@ -35,54 +35,55 @@ function CompareContent() {
   const [copyError, setCopyError] = useState<boolean>(false);
   const [excessWarning, setExcessWarning] = useState<string | null>(null);
 
+  const abortControllerRef = React.useRef<AbortController | null>(null);
+  const requestIdRef = React.useRef<number>(0);
+
   // Read URL query parameters
+  const hasUrlModelsParam = searchParams.has("models") || searchParams.has("ids");
   const queryParam = searchParams.get("models") || searchParams.get("ids") || "";
 
-  // Initialize from URL: URL parameters take strict precedence over local storage
+  // S3-07 & S3-08: Initialize from URL. URL parameter takes strict precedence over localStorage.
   useEffect(() => {
-    if (!queryParam) return;
-    const queryIds = queryParam
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (queryIds.length > 0) {
-      if (queryIds.length > maxLimit) {
+    if (hasUrlModelsParam) {
+      const queryIds = queryParam
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+      const uniqueIds = Array.from(new Set(queryIds));
+
+      if (uniqueIds.length > maxLimit) {
         setExcessWarning(
-          `You provided ${queryIds.length} models in the comparison URL. Only the first ${maxLimit} (${queryIds.slice(0, maxLimit).join(", ")}) were loaded because the comparison limit is ${maxLimit}.`
+          `Comparison URL requested ${uniqueIds.length} models, which exceeds the supported limit of ${maxLimit}. Active comparison displays the first ${maxLimit} (${uniqueIds.slice(0, maxLimit).join(", ")}).`
         );
+        setComparison(uniqueIds.slice(0, maxLimit));
       } else {
         setExcessWarning(null);
+        setComparison(uniqueIds);
       }
-      setComparison(queryIds.slice(0, maxLimit));
     }
-  }, [queryParam, maxLimit, setComparison]);
+  }, [hasUrlModelsParam, queryParam, maxLimit, setComparison]);
 
-  // Active key for comparison IDs
-  const activeKey = selectedModelIds.length > 0 ? selectedModelIds.join(",") : queryParam;
-  const activeIds = activeKey
-    ? activeKey
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
-
-  // Sync current active IDs to URL search param
+  // S3-09: Sync current active IDs to URL search param without loops
   useEffect(() => {
-    if (selectedModelIds.length > 0) {
-      const newUrl = `/compare?models=${selectedModelIds.join(",")}`;
-      window.history.replaceState(null, "", newUrl);
-    } else if (!queryParam) {
-      window.history.replaceState(null, "", "/compare");
-    }
-  }, [selectedModelIds, queryParam]);
+    const currentParam = searchParams.get("models") || searchParams.get("ids") || "";
+    const activeParam = selectedModelIds.join(",");
 
-  // Fetch model comparison data whenever activeKey changes
+    if (activeParam !== currentParam) {
+      const newUrl = selectedModelIds.length > 0 ? `/compare?models=${activeParam}` : "/compare";
+      router.replace(newUrl, { scroll: false });
+    }
+  }, [selectedModelIds, searchParams, router]);
+
+  // S3-10: Fetch model comparison data with race-condition protection
   const fetchComparisonData = useCallback(async () => {
-    const ids = activeKey
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .slice(0, maxLimit);
+    const currentRequestId = ++requestIdRef.current;
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const ids = selectedModelIds.slice(0, maxLimit);
 
     if (ids.length === 0) {
       setModelsData([]);
@@ -95,23 +96,31 @@ function CompareContent() {
     setError(null);
 
     try {
-      const res = await fetch(`/api/models/compare?ids=${encodeURIComponent(ids.join(","))}`);
+      const res = await fetch(`/api/models/compare?ids=${encodeURIComponent(ids.join(","))}`, {
+        signal: controller.signal,
+      });
       if (!res.ok) {
         throw new Error(`Failed to load comparison data: HTTP ${res.status}`);
       }
       const data = await res.json();
-      if (data.success && data.data) {
-        setModelsData(data.data.models || []);
-        setMissingIds(data.data.missingIds || []);
-      } else {
-        throw new Error(data.error?.message || "Failed to parse comparison data");
+      if (currentRequestId === requestIdRef.current) {
+        if (data.success && data.data) {
+          setModelsData(data.data.models || []);
+          setMissingIds(data.data.missingIds || []);
+        } else {
+          throw new Error(data.error?.message || "Failed to parse comparison data");
+        }
       }
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred while loading comparison data.");
+      if (err.name !== "AbortError" && currentRequestId === requestIdRef.current) {
+        setError(err.message || "An unexpected error occurred while loading comparison data.");
+      }
     } finally {
-      setIsLoading(false);
+      if (currentRequestId === requestIdRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [activeKey, maxLimit]);
+  }, [selectedModelIds, maxLimit]);
 
   useEffect(() => {
     fetchComparisonData();
@@ -161,7 +170,7 @@ function CompareContent() {
           </Button>
         </Link>
 
-        {activeIds.length > 0 && (
+        {selectedModelIds.length > 0 && (
           <div className="flex items-center gap-2">
             <Button
               variant="outline"

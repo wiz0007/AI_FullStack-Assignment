@@ -40,8 +40,8 @@ export class CompanyService {
     };
   }
 
-  async getCompanyBySlug(slug: string) {
-    const company = await this.repo.findBySlug(slug);
+  async getCompanyBySlug(slug: string, pagination?: { page?: number; limit?: number }) {
+    const company = await this.repo.findBySlug(slug, pagination);
     if (!company) {
       throw new NotFoundError(`AI Company or Lab with slug '${slug}' was not found`);
     }
@@ -83,6 +83,7 @@ export class CompanyService {
           })),
         };
       }),
+      pagination: company.pagination,
       createdAt: company.createdAt.toISOString(),
     };
   }

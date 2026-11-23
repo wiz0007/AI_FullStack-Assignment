@@ -38,21 +38,23 @@ export function AddToComparisonButton({
       variant={selected ? "primary" : variant}
       size={size}
       onClick={handleToggle}
-      className={`gap-1.5 transition-all ${className}`}
+      className={`gap-1.5 transition-all whitespace-nowrap shrink-0 ${className}`}
       aria-label={
         selected
           ? `Remove ${modelName || modelId} from comparison`
           : `Add ${modelName || modelId} to comparison`
       }
+      title={selected ? "Added to Compare" : "Compare"}
     >
       {selected ? (
         <>
-          <Check className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Added to Compare</span>
+          <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+          <span className="hidden sm:inline">Added to Compare</span>
+          <span className="sm:hidden">Added</span>
         </>
       ) : (
         <>
-          <Scale className="w-3.5 h-3.5" />
+          <Scale className="w-3.5 h-3.5 shrink-0" />
           <span>Compare</span>
         </>
       )}

@@ -36,12 +36,12 @@ test.describe("OneAtlas Smoke E2E Tests", () => {
 
   test("Navigation routes resolve to pages", async ({ page }) => {
     await page.goto("/models");
-    await expect(page.getByRole("heading", { name: /AI Models Directory/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Foundation AI Models/i })).toBeVisible();
 
     await page.goto("/compare");
     await expect(page.getByRole("heading", { name: /Model Comparison/i })).toBeVisible();
 
     await page.goto("/rankings");
-    await expect(page.getByRole("heading", { name: /Rankings & Benchmarks/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Rankings & Benchmark/i })).toBeVisible();
   });
 });

@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Trophy, Medal, Award, ArrowUpRight, ArrowDown, ArrowUp } from "lucide-react";
+import { Trophy, Medal, Award, ArrowUpRight, ArrowDown, ArrowUp, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AddToComparisonButton } from "@/components/comparison/add-to-comparison-button";
 
@@ -13,6 +13,8 @@ export interface RankingItem {
   datasetVersion?: string | null;
   evaluationDate?: string | null;
   source?: string | null;
+  evaluator?: string | null;
+  dataClassification?: string | null;
   model: {
     id: string;
     name: string;
@@ -112,6 +114,7 @@ export function LeaderboardTable({
             </th>
             <th className="p-4">Dataset Version</th>
             <th className="p-4">Evaluation Date</th>
+            <th className="p-4">Source & Provenance</th>
             <th className="p-4 text-right">Actions</th>
           </tr>
         </thead>
@@ -160,12 +163,40 @@ export function LeaderboardTable({
                   </span>
                 </td>
                 <td className="p-4 font-mono text-[11px] text-[var(--secondary-text)]">
-                  {item.datasetVersion || "Standard"}
+                  {item.datasetVersion || "Not specified"}
                 </td>
                 <td className="p-4 font-mono text-[11px] text-[var(--secondary-text)]">
                   {item.evaluationDate
                     ? new Date(item.evaluationDate).toLocaleDateString()
-                    : "Verified"}
+                    : "Not provided"}
+                </td>
+                <td className="p-4 text-[11px] text-[var(--secondary-text)]">
+                  <div className="flex flex-col gap-1">
+                    {item.source ? (
+                      item.source.startsWith("http") ? (
+                        <a
+                          href={item.source}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline text-[var(--accent)] font-medium inline-flex items-center gap-0.5"
+                        >
+                          <span>{item.evaluator || "Evaluation Source"}</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      ) : (
+                        <span>
+                          {item.evaluator ? `${item.evaluator} (${item.source})` : item.source}
+                        </span>
+                      )
+                    ) : (
+                      <span className="italic">Not provided</span>
+                    )}
+                    {item.dataClassification && (
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold w-fit bg-[var(--secondary-surface)] border border-[var(--border-color)]">
+                        {item.dataClassification}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="p-4 text-right">
                   <div className="flex items-center justify-end gap-2">

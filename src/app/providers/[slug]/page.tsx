@@ -14,12 +14,25 @@ interface ProviderDetailPageProps {
   params: {
     slug: string;
   };
+  searchParams?: {
+    page?: string;
+    limit?: string;
+  };
 }
 
-export default async function ProviderDetailPage({ params }: ProviderDetailPageProps) {
+export default async function ProviderDetailPage({
+  params,
+  searchParams,
+}: ProviderDetailPageProps) {
   let provider: any = null;
+  const page = searchParams?.page ? parseInt(searchParams.page, 10) : 1;
+  const limit = searchParams?.limit ? parseInt(searchParams.limit, 10) : 10;
+
   try {
-    provider = await providerService.getProviderBySlug(params.slug);
+    provider = await providerService.getProviderBySlug(params.slug, {
+      page: isNaN(page) || page < 1 ? 1 : page,
+      limit: isNaN(limit) || limit < 1 ? 10 : limit,
+    });
   } catch (err: any) {
     if (err instanceof NotFoundError || err?.statusCode === 404 || err?.name === "NotFoundError") {
       notFound();
@@ -60,8 +73,10 @@ export default async function ProviderDetailPage({ params }: ProviderDetailPageP
                   {provider.name}
                 </h1>
                 <Badge variant="accent" className="text-xs">
-                  {provider.models.length}{" "}
-                  {provider.models.length === 1 ? "Hosted Model" : "Hosted Models"}
+                  {provider.pagination?.total ?? provider.models.length}{" "}
+                  {(provider.pagination?.total ?? provider.models.length) === 1
+                    ? "Hosted Model"
+                    : "Hosted Models"}
                 </Badge>
               </div>
               <div className="text-xs text-[var(--secondary-text)] mt-1">
@@ -96,8 +111,7 @@ export default async function ProviderDetailPage({ params }: ProviderDetailPageP
             Hosted Models & Inference Pricing
           </h2>
           <p className="text-xs text-[var(--secondary-text)] mt-0.5">
-            Verified pricing per 1M tokens and active availability for endpoints hosted by{" "}
-            {provider.name}.
+            Registered pricing and endpoint availability for models hosted by {provider.name}.
           </p>
         </div>
 
@@ -196,6 +210,32 @@ export default async function ProviderDetailPage({ params }: ProviderDetailPageP
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* S3-05: Provider Models Pagination */}
+        {provider.pagination && provider.pagination.totalPages > 1 && (
+          <div className="flex items-center justify-between pt-6 border-t border-[var(--border-color)]">
+            <span className="text-xs text-[var(--secondary-text)]">
+              Showing Page {provider.pagination.page} of {provider.pagination.totalPages} (
+              {provider.pagination.total} total hosted models)
+            </span>
+            <div className="flex items-center gap-2">
+              {provider.pagination.hasPreviousPage && (
+                <Link href={`/providers/${params.slug}?page=${provider.pagination.page - 1}`}>
+                  <Button variant="outline" size="sm">
+                    Previous
+                  </Button>
+                </Link>
+              )}
+              {provider.pagination.hasNextPage && (
+                <Link href={`/providers/${params.slug}?page=${provider.pagination.page + 1}`}>
+                  <Button variant="outline" size="sm">
+                    Next
+                  </Button>
+                </Link>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -39,11 +39,20 @@ export default function ModelsDiscoveryPage() {
       .filter(Boolean);
   };
 
+  const parseNumParam = (key: string): number | undefined => {
+    const val = searchParams.get(key);
+    if (!val) return undefined;
+    const n = parseFloat(val);
+    return isNaN(n) || n < 0 ? undefined : n;
+  };
+
   const initialFilters: FilterState = {
     provider: parseArrayParam("provider"),
     category: parseArrayParam("category"),
     capability: parseArrayParam("capability"),
     company: parseArrayParam("company"),
+    minPrice: parseNumParam("minPrice"),
+    maxPrice: parseNumParam("maxPrice"),
   };
 
   // State
@@ -66,6 +75,39 @@ export default function ModelsDiscoveryPage() {
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef<number>(0);
+
+  // S2-04: Synchronize browser back/forward navigation from URL
+  useEffect(() => {
+    const urlQ = searchParams.get("q") || "";
+    const urlProvider = searchParams.get("provider")?.split(",").filter(Boolean) || [];
+    const urlCategory = searchParams.get("category")?.split(",").filter(Boolean) || [];
+    const urlCapability = searchParams.get("capability")?.split(",").filter(Boolean) || [];
+    const urlCompany = searchParams.get("company")?.split(",").filter(Boolean) || [];
+    const urlSort = (searchParams.get("sort") as ModelSortOption) || "relevance";
+    const urlPage = parseInt(searchParams.get("page") || "1", 10);
+
+    const minVal = searchParams.get("minPrice");
+    const parsedMin = minVal ? parseFloat(minVal) : NaN;
+    const urlMinPrice = !isNaN(parsedMin) && parsedMin >= 0 ? parsedMin : undefined;
+
+    const maxVal = searchParams.get("maxPrice");
+    const parsedMax = maxVal ? parseFloat(maxVal) : NaN;
+    const urlMaxPrice = !isNaN(parsedMax) && parsedMax >= 0 ? parsedMax : undefined;
+
+    setSearchQuery(urlQ);
+    setDebouncedQuery(urlQ);
+    setFilters({
+      provider: urlProvider,
+      category: urlCategory,
+      capability: urlCapability,
+      company: urlCompany,
+      minPrice: urlMinPrice,
+      maxPrice: urlMaxPrice,
+    });
+    setSort(urlSort);
+    setPage(isNaN(urlPage) || urlPage < 1 ? 1 : urlPage);
+  }, [searchParams]);
 
   // Debounce search query changes
   useEffect(() => {
@@ -86,12 +128,21 @@ export default function ModelsDiscoveryPage() {
       if (flt.capability && flt.capability.length > 0)
         params.set("capability", flt.capability.join(","));
       if (flt.company && flt.company.length > 0) params.set("company", flt.company.join(","));
+      if (flt.minPrice !== undefined && !isNaN(flt.minPrice))
+        params.set("minPrice", flt.minPrice.toString());
+      if (flt.maxPrice !== undefined && !isNaN(flt.maxPrice))
+        params.set("maxPrice", flt.maxPrice.toString());
       if (s && s !== "relevance") params.set("sort", s);
       if (p > 1) params.set("page", p.toString());
 
       const queryStr = params.toString();
       const target = queryStr ? `${pathname}?${queryStr}` : pathname;
-      router.replace(target, { scroll: false });
+      const currentUrl =
+        typeof window !== "undefined" ? `${window.location.pathname}${window.location.search}` : "";
+
+      if (currentUrl !== target) {
+        router.push(target, { scroll: false });
+      }
     },
     [pathname, router]
   );
@@ -114,8 +165,9 @@ export default function ModelsDiscoveryPage() {
     loadMetadata();
   }, []);
 
-  // Fetch models
+  // Fetch models with S2-05 request race handling
   const fetchModels = useCallback(async () => {
+    const currentRequestId = ++requestIdRef.current;
     setIsLoading(true);
     setError(null);
 
@@ -132,6 +184,10 @@ export default function ModelsDiscoveryPage() {
       if (filters.category?.length) params.set("category", filters.category.join(","));
       if (filters.capability?.length) params.set("capability", filters.capability.join(","));
       if (filters.company?.length) params.set("company", filters.company.join(","));
+      if (filters.minPrice !== undefined && !isNaN(filters.minPrice))
+        params.set("minPrice", filters.minPrice.toString());
+      if (filters.maxPrice !== undefined && !isNaN(filters.maxPrice))
+        params.set("maxPrice", filters.maxPrice.toString());
       if (sort && sort !== "relevance") params.set("sort", sort);
       params.set("page", page.toString());
       params.set("limit", "12");
@@ -146,18 +202,20 @@ export default function ModelsDiscoveryPage() {
       }
 
       const json = await res.json();
-      if (json.success) {
+      if (currentRequestId === requestIdRef.current && json.success) {
         setModels(json.data || []);
         if (json.meta) {
           setPagination(json.meta);
         }
       }
     } catch (err: any) {
-      if (err.name !== "AbortError") {
+      if (err.name !== "AbortError" && currentRequestId === requestIdRef.current) {
         setError(err.message || "An unexpected error occurred");
       }
     } finally {
-      setIsLoading(false);
+      if (currentRequestId === requestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [debouncedQuery, filters, sort, page]);
 
@@ -185,6 +243,12 @@ export default function ModelsDiscoveryPage() {
   };
 
   const handleRemoveFilter = (key: keyof FilterState, val?: string) => {
+    if (key === "minPrice" || key === "maxPrice") {
+      setFilters((prev) => ({ ...prev, [key]: undefined }));
+      setPage(1);
+      return;
+    }
+
     if (!val) {
       setFilters((prev) => ({ ...prev, [key]: [] }));
     } else {
@@ -206,7 +270,14 @@ export default function ModelsDiscoveryPage() {
   };
 
   const handleClearAllFilters = () => {
-    setFilters({ provider: [], category: [], capability: [], company: [] });
+    setFilters({
+      provider: [],
+      category: [],
+      capability: [],
+      company: [],
+      minPrice: undefined,
+      maxPrice: undefined,
+    });
     setSearchQuery("");
     setDebouncedQuery("");
     setSort("relevance");
@@ -249,14 +320,31 @@ export default function ModelsDiscoveryPage() {
           </p>
         </div>
 
-        {/* Search Bar */}
-        <div className="w-full md:w-80">
-          <SearchInput
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            onClear={handleClearSearch}
-            placeholder="Search models, providers, specs..."
-          />
+        {/* Search Bar + Mobile Filter Button on small screens */}
+        <div className="w-full md:w-80 flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <SearchInput
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onClear={handleClearSearch}
+              placeholder="Search models, providers, specs..."
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMobileFilterOpen(true)}
+            className="lg:hidden shrink-0 h-10 px-3 text-xs gap-1.5"
+            aria-label="Open filter sidebar"
+          >
+            <Filter className="w-3.5 h-3.5 text-[var(--accent)]" />
+            <span className="hidden xs:inline">Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="w-4 h-4 rounded-full bg-[var(--accent)] text-white text-[10px] flex items-center justify-center font-bold">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
         </div>
       </div>
 
@@ -274,35 +362,26 @@ export default function ModelsDiscoveryPage() {
 
         {/* Content Area */}
         <div className="flex-1 w-full space-y-6">
-          {/* Controls Bar: Mobile filter button, Active chips, Sort */}
+          {/* Controls Bar: Item count and Sort */}
           <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setMobileFilterOpen(true)}
-                  className="lg:hidden text-xs gap-1.5"
-                >
-                  <Filter className="w-3.5 h-3.5 text-[var(--accent)]" />
-                  <span>Filters {activeFilterCount > 0 ? `(${activeFilterCount})` : ""}</span>
-                </Button>
-                <span className="text-xs text-[var(--secondary-text)] font-medium">
-                  {isLoading ? (
-                    "Loading catalogue..."
-                  ) : (
-                    <>
-                      Found{" "}
-                      <span className="font-semibold text-[var(--primary-text)]">
-                        {pagination.total}
-                      </span>{" "}
-                      {pagination.total === 1 ? "model" : "models"}
-                    </>
-                  )}
-                </span>
-              </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-[var(--secondary-text)] font-medium">
+                {isLoading ? (
+                  "Loading catalogue..."
+                ) : (
+                  <>
+                    Found{" "}
+                    <span className="font-semibold text-[var(--primary-text)]">
+                      {pagination.total}
+                    </span>{" "}
+                    {pagination.total === 1 ? "model" : "models"}
+                  </>
+                )}
+              </span>
 
-              <SortSelect value={sort} onChange={handleSortChange} />
+              <div className="shrink-0">
+                <SortSelect value={sort} onChange={handleSortChange} />
+              </div>
             </div>
 
             {/* Active Filter Chips */}
@@ -365,7 +444,7 @@ export default function ModelsDiscoveryPage() {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {models.map((m) => (
-                  <ModelCard key={m.id} model={m} />
+                  <ModelCard key={m.id} model={m} selectedProviders={filters.provider} />
                 ))}
               </div>
 

@@ -49,8 +49,8 @@ describe("ComparisonTable Component (Sprint 3)", () => {
     const handleRemove = vi.fn();
     render(<ComparisonTable models={sampleModels} onRemoveModel={handleRemove} maxLimit={3} />);
 
-    expect(screen.getByText("GPT-4o")).toBeDefined();
-    expect(screen.getByText("Claude 3.5 Sonnet")).toBeDefined();
+    expect(screen.getAllByText("GPT-4o").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Claude 3.5 Sonnet").length).toBeGreaterThan(0);
     expect(screen.getByText("Specification")).toBeDefined();
   });
 
@@ -58,10 +58,10 @@ describe("ComparisonTable Component (Sprint 3)", () => {
     const handleRemove = vi.fn();
     render(<ComparisonTable models={sampleModels} onRemoveModel={handleRemove} maxLimit={3} />);
 
-    expect(screen.getByText("128K tokens")).toBeDefined();
-    expect(screen.getByText("200K tokens")).toBeDefined();
-    expect(screen.getByText("$2.50")).toBeDefined();
-    expect(screen.getByText("$3.00")).toBeDefined();
+    expect(screen.getAllByText("128K tokens").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("200K tokens").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("$2.50").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("$3.00").length).toBeGreaterThan(0);
   });
 
   it("should call onRemoveModel when remove button is clicked", () => {

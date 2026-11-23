@@ -70,10 +70,20 @@ export class CompanyRepository {
     };
   }
 
-  async findBySlug(slug: string) {
-    return prisma.company.findUnique({
+  /**
+   * S3-05: Company detail with database-level model pagination and canonical pricing conditions.
+   */
+  async findBySlug(slug: string, pagination?: { page?: number; limit?: number }) {
+    const page = pagination?.page || 1;
+    const limit = pagination?.limit || 10;
+    const skip = (page - 1) * limit;
+
+    const company = await prisma.company.findUnique({
       where: { slug },
       include: {
+        _count: {
+          select: { models: true },
+        },
         models: {
           include: {
             capabilities: {
@@ -86,18 +96,32 @@ export class CompanyRepository {
                 provider: true,
                 pricing: {
                   where: {
+                    effectiveFrom: { lte: new Date() },
                     OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date() } }],
                   },
-                  orderBy: { effectiveFrom: "desc" },
-                  take: 1,
+                  orderBy: [{ effectiveFrom: "desc" }, { id: "asc" }],
                 },
               },
             },
           },
           orderBy: { releaseDate: { sort: "desc", nulls: "last" } },
+          skip,
+          take: limit,
         },
       },
     });
+
+    if (!company) return null;
+
+    return {
+      ...company,
+      pagination: {
+        page,
+        limit,
+        total: company._count.models,
+        totalPages: Math.ceil(company._count.models / limit) || 1,
+      },
+    };
   }
 
   async globalSearchCompanies(query: string, limit = 5) {

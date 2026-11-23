@@ -7,6 +7,7 @@ import {
   GlobalSearchQueryParams,
 } from "../validators/model.validator";
 import { NotFoundError, ConflictError } from "@/lib/errors";
+import { toBenchmarkEvaluationDTO, selectCurrentEvaluations } from "@/lib/benchmark";
 
 export class ModelService {
   constructor(
@@ -38,7 +39,16 @@ export class ModelService {
     if (!model) {
       throw new NotFoundError(`Model with identifier '${slugOrId}' was not found`);
     }
-    return model;
+
+    // P0-01 & P0-02: Transform evaluations into canonical DTOs and select deterministic current evaluations
+    const canonicalBenchmarks = selectCurrentEvaluations(
+      (model.benchmarks || []).map((bm: any) => toBenchmarkEvaluationDTO(bm))
+    );
+
+    return {
+      ...model,
+      benchmarks: canonicalBenchmarks,
+    };
   }
 
   async getModelBySlug(slug: string) {
@@ -77,8 +87,16 @@ export class ModelService {
       }
     });
 
+    // P0-01 & P0-02: Ensure compared models expose canonical current evaluations
+    const formattedModels = orderedModels.map((m) => ({
+      ...m,
+      benchmarks: selectCurrentEvaluations(
+        (m.benchmarks || []).map((bm: any) => toBenchmarkEvaluationDTO(bm))
+      ),
+    }));
+
     return {
-      models: orderedModels,
+      models: formattedModels,
       missingIds,
     };
   }

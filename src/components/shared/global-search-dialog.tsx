@@ -30,6 +30,7 @@ export function GlobalSearchDialog({ isOpen, onClose }: { isOpen: boolean; onClo
   const [isLoading, setIsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const requestIdRef = useRef<number>(0);
 
   // Flattened list for keyboard navigation
   const flatItems: SearchResultItem[] = [
@@ -48,7 +49,7 @@ export function GlobalSearchDialog({ isOpen, onClose }: { isOpen: boolean; onClo
     }
   }, [isOpen]);
 
-  // Debounced query execution
+  // Debounced query execution with monotonic request ID race handling (S2-09)
   useEffect(() => {
     if (!query.trim()) {
       setResults({ models: [], providers: [], companies: [] });
@@ -56,6 +57,7 @@ export function GlobalSearchDialog({ isOpen, onClose }: { isOpen: boolean; onClo
       return;
     }
 
+    const currentRequestId = ++requestIdRef.current;
     setIsLoading(true);
     const controller = new AbortController();
 
@@ -66,7 +68,7 @@ export function GlobalSearchDialog({ isOpen, onClose }: { isOpen: boolean; onClo
         });
         if (!res.ok) throw new Error("Search failed");
         const json = await res.json();
-        if (json.success && json.data) {
+        if (currentRequestId === requestIdRef.current && json.success && json.data) {
           setResults({
             models: json.data.models || [],
             providers: json.data.providers || [],
@@ -75,11 +77,13 @@ export function GlobalSearchDialog({ isOpen, onClose }: { isOpen: boolean; onClo
           setSelectedIndex(0);
         }
       } catch (err: any) {
-        if (err.name !== "AbortError") {
+        if (err.name !== "AbortError" && currentRequestId === requestIdRef.current) {
           console.error("Global search error:", err);
         }
       } finally {
-        setIsLoading(false);
+        if (currentRequestId === requestIdRef.current) {
+          setIsLoading(false);
+        }
       }
     }, 250);
 
