@@ -39,11 +39,16 @@ export class ProviderService {
     };
   }
 
-  async getProviderBySlug(slug: string) {
-    const provider = await this.repo.findBySlug(slug);
+  async getProviderBySlug(slug: string, pagination?: { page?: number; limit?: number }) {
+    const provider = await this.repo.findBySlug(slug, pagination);
     if (!provider) {
       throw new NotFoundError(`Inference Provider with slug '${slug}' was not found`);
     }
+
+    const page = pagination?.page || 1;
+    const limit = pagination?.limit || 10;
+    const total = provider._count.models;
+    const totalPages = Math.ceil(total / limit) || 1;
 
     return {
       id: provider.id,
@@ -90,6 +95,14 @@ export class ProviderService {
           })),
         };
       }),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
       createdAt: provider.createdAt.toISOString(),
     };
   }

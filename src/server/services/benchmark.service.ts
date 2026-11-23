@@ -7,17 +7,27 @@ export class BenchmarkService {
 
   async listBenchmarks(category?: string) {
     const benchmarks = await this.repo.findAll(category);
-    return benchmarks.map((b) => ({
-      id: b.id,
-      name: b.name,
-      slug: b.slug,
-      description: b.description,
-      category: b.category,
-      scoreUnit: b.scoreUnit,
-      scoreDirection: b.scoreDirection,
-      version: b.version,
-      modelCount: b._count.modelScores,
-    }));
+    return benchmarks.map((b) => {
+      const defaultVersion = b.versions[0];
+      return {
+        id: b.id,
+        name: b.name,
+        slug: b.slug,
+        description: b.description,
+        category: b.category,
+        scoreUnit: defaultVersion?.scoreUnit || "percentage",
+        scoreDirection: defaultVersion?.scoreDirection || "HIGHER_IS_BETTER",
+        version: defaultVersion?.version || "1.0",
+        versions: b.versions.map((v) => ({
+          id: v.id,
+          version: v.version,
+          scoreUnit: v.scoreUnit,
+          scoreDirection: v.scoreDirection,
+          description: v.description,
+          source: v.source,
+        })),
+      };
+    });
   }
 
   async getBenchmarkBySlug(slug: string) {

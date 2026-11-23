@@ -71,10 +71,20 @@ export class ProviderRepository {
     };
   }
 
-  async findBySlug(slug: string) {
-    return prisma.provider.findUnique({
+  /**
+   * S3-06: Provider detail with database-level hosted model pagination and canonical pricing conditions.
+   */
+  async findBySlug(slug: string, pagination?: { page?: number; limit?: number }) {
+    const page = pagination?.page || 1;
+    const limit = pagination?.limit || 10;
+    const skip = (page - 1) * limit;
+
+    const provider = await prisma.provider.findUnique({
       where: { slug },
       include: {
+        _count: {
+          select: { models: true },
+        },
         models: {
           include: {
             model: {
@@ -89,15 +99,30 @@ export class ProviderRepository {
             },
             pricing: {
               where: {
+                effectiveFrom: { lte: new Date() },
                 OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date() } }],
               },
-              orderBy: { effectiveFrom: "desc" },
+              orderBy: [{ effectiveFrom: "desc" }, { id: "asc" }],
             },
           },
           orderBy: { model: { name: "asc" } },
+          skip,
+          take: limit,
         },
       },
     });
+
+    if (!provider) return null;
+
+    return {
+      ...provider,
+      pagination: {
+        page,
+        limit,
+        total: provider._count.models,
+        totalPages: Math.ceil(provider._count.models / limit) || 1,
+      },
+    };
   }
 
   async globalSearchProviders(query: string, limit = 5) {

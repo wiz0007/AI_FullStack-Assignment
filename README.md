@@ -113,11 +113,12 @@ Implemented **Option 4: Warm Ivory, Deep Atlas Navy & Regal Gold**:
 ---
 
 ## 📄 Documentation Links
-- [System Architecture](file:///docs/architecture/system-architecture.md)
-- [Project Structure](file:///docs/architecture/project-structure.md)
-- [Database Design & Schemas](file:///docs/database/database-design.md)
-- [Entity Relationships Diagram](file:///docs/database/entity-relationships.md)
-- [Database Migration & Seed Strategy](file:///docs/database/migration-strategy.md)
-- [API Conventions](file:///docs/api/api-conventions.md)
-- [Testing Strategy](file:///docs/testing/testing-strategy.md)
-- [Test Execution Guide](file:///docs/testing/test-execution.md)
+- [System Architecture](docs/architecture/system-architecture.md)
+- [Project Structure](docs/architecture/project-structure.md)
+- [Database Design & Schemas](docs/database/database-design.md)
+- [Entity Relationships Diagram](docs/database/entity-relationships.md)
+- [Database Migration & Seed Strategy](docs/database/migration-strategy.md)
+- [API Conventions](docs/api/api-conventions.md)
+- [Testing Strategy](docs/testing/testing-strategy.md)
+- [Test Execution Guide](docs/testing/test-execution.md)
+- [Sprint 1-5 Requirements Traceability](docs/requirements-traceability.md)

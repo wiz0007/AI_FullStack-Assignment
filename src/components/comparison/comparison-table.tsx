@@ -7,6 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCompactNumber, formatCurrency } from "@/lib/utils";
 import { getRepresentativeModelPrice } from "@/lib/pricing";
+import {
+  toBenchmarkEvaluationDTO,
+  compareBenchmarkEvaluations,
+  BenchmarkEvaluationDTO,
+} from "@/lib/benchmark";
 
 export interface ComparisonTableProps {
   models: any[];
@@ -34,12 +39,14 @@ export function ComparisonTable({ models, onRemoveModel, maxLimit }: ComparisonT
   const allBenchmarks: [string, string][] = Array.from(
     new Map<string, string>(
       models.flatMap((m) =>
-        (m.benchmarks || []).map(
-          (b: any) => [b.benchmark.slug, b.benchmark.name] as [string, string]
-        )
+        (m.benchmarks || []).map((b: any) => {
+          const slug = b.benchmarkSlug || b.benchmark?.slug;
+          const name = b.benchmarkName || b.benchmark?.name || slug;
+          return [slug, name] as [string, string];
+        })
       )
     ).entries()
-  );
+  ).filter(([s]) => Boolean(s));
 
   // Helper to check if a specification row differs across models
   const isDiff = (getter: (m: any) => any) => {
@@ -240,11 +247,17 @@ export function ComparisonTable({ models, onRemoveModel, maxLimit }: ComparisonT
               {models.map((m) => (
                 <td key={m.id} className="p-4">
                   <div className="flex flex-wrap gap-1">
-                    {(m.inputModalities || ["text"]).map((mod: string) => (
-                      <Badge key={mod} variant="default" className="text-[10px] capitalize">
-                        {mod}
-                      </Badge>
-                    ))}
+                    {m.inputModalities && m.inputModalities.length > 0 ? (
+                      m.inputModalities.map((mod: string) => (
+                        <Badge key={mod} variant="default" className="text-[10px] capitalize">
+                          {mod}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-[var(--secondary-text)] italic text-[11px]">
+                        Not provided
+                      </span>
+                    )}
                   </div>
                 </td>
               ))}
@@ -261,11 +274,17 @@ export function ComparisonTable({ models, onRemoveModel, maxLimit }: ComparisonT
               {models.map((m) => (
                 <td key={m.id} className="p-4">
                   <div className="flex flex-wrap gap-1">
-                    {(m.outputModalities || ["text"]).map((mod: string) => (
-                      <Badge key={mod} variant="default" className="text-[10px] capitalize">
-                        {mod}
-                      </Badge>
-                    ))}
+                    {m.outputModalities && m.outputModalities.length > 0 ? (
+                      m.outputModalities.map((mod: string) => (
+                        <Badge key={mod} variant="default" className="text-[10px] capitalize">
+                          {mod}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-[var(--secondary-text)] italic text-[11px]">
+                        Not provided
+                      </span>
+                    )}
                   </div>
                 </td>
               ))}
@@ -324,56 +343,113 @@ export function ComparisonTable({ models, onRemoveModel, maxLimit }: ComparisonT
             )}
 
             {allBenchmarks.map(([bSlug, bName]) => {
-              const diff = isDiff((m) => {
-                const b = (m.benchmarks || []).find((bm: any) => bm.benchmark.slug === bSlug);
-                return b ? parseFloat(b.score) : null;
+              // Convert each model's benchmark evaluation into canonical DTO if present
+              const modelEvaluations = models.map((m) => {
+                const raw = (m.benchmarks || []).find(
+                  (bm: any) =>
+                    bm.benchmarkSlug === bSlug ||
+                    bm.benchmark?.slug === bSlug ||
+                    (bm.benchmarkVersion?.benchmark && bm.benchmarkVersion.benchmark.slug === bSlug)
+                );
+                return raw ? toBenchmarkEvaluationDTO(raw) : null;
               });
 
-              // Check if dataset versions differ across models for this benchmark
-              const datasetVersions = models
-                .map(
-                  (m) =>
-                    (m.benchmarks || []).find((bm: any) => bm.benchmark.slug === bSlug)
-                      ?.datasetVersion
-                )
-                .filter(Boolean);
-              const hasDifferingDatasets = new Set(datasetVersions).size > 1;
+              // Multi-dimensional comparability check (P0-03)
+              let comparisonResult: any = null;
+              let isComparable = true;
+              let incompatibilityReason: string | null = null;
+
+              if (models.length === 2 && modelEvaluations[0] && modelEvaluations[1]) {
+                comparisonResult = compareBenchmarkEvaluations(
+                  modelEvaluations[0],
+                  modelEvaluations[1]
+                );
+                isComparable = comparisonResult.isComparable;
+                incompatibilityReason = comparisonResult.incompatibilityReason;
+              } else if (models.length > 2) {
+                // If 3 models, check pairwise compatibility
+                for (let i = 0; i < modelEvaluations.length; i++) {
+                  for (let j = i + 1; j < modelEvaluations.length; j++) {
+                    if (modelEvaluations[i] && modelEvaluations[j]) {
+                      const res = compareBenchmarkEvaluations(
+                        modelEvaluations[i],
+                        modelEvaluations[j]
+                      );
+                      if (!res.isComparable) {
+                        isComparable = false;
+                        incompatibilityReason = res.incompatibilityReason;
+                        break;
+                      }
+                    }
+                  }
+                  if (!isComparable) break;
+                }
+              }
+
+              // Only highlight differences if results are strictly comparable
+              const diff = isComparable
+                ? isDiff((m) => {
+                    const raw = (m.benchmarks || []).find(
+                      (bm: any) =>
+                        bm.benchmarkSlug === bSlug ||
+                        bm.benchmark?.slug === bSlug ||
+                        (bm.benchmarkVersion?.benchmark &&
+                          bm.benchmarkVersion.benchmark.slug === bSlug)
+                    );
+                    return raw ? parseFloat(raw.score) : null;
+                  })
+                : false;
 
               return (
                 <tr key={bSlug} className={getRowClass(diff)}>
                   <td className="p-4 font-medium text-[var(--secondary-text)] sticky left-0 bg-[var(--surface)]">
                     <div>
-                      <span>{bName}</span>
-                      {hasDifferingDatasets && (
+                      <span className="font-semibold text-[var(--primary-text)]">{bName}</span>
+                      {!isComparable && incompatibilityReason && (
                         <span
-                          title="Dataset versions vary across compared models for this benchmark"
-                          className="ml-1.5 text-[10px] text-amber-500 font-normal inline-block"
+                          title={incompatibilityReason}
+                          className="ml-1.5 text-[10px] text-amber-500 font-normal inline-block bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20"
                         >
-                          ⚠️ differing versions
+                          ⚠️ Incompatible: {incompatibilityReason}
                         </span>
                       )}
                     </div>
                   </td>
-                  {models.map((m) => {
-                    const bScore = (m.benchmarks || []).find(
-                      (b: any) => b.benchmark.slug === bSlug
-                    );
+                  {models.map((m, idx) => {
+                    const evalDto = modelEvaluations[idx];
+                    const isWinner =
+                      isComparable &&
+                      comparisonResult?.canHighlightWinner &&
+                      comparisonResult.winnerModelId === m.id;
+
                     return (
                       <td key={m.id} className="p-4 font-mono font-bold">
-                        {bScore ? (
+                        {evalDto ? (
                           <div>
-                            <span>
-                              {parseFloat(bScore.score)}{" "}
-                              {bScore.scoreUnit === "percentage" ? "%" : ""}
-                            </span>
-                            {bScore.datasetVersion && (
-                              <span className="text-[10px] text-[var(--secondary-text)] font-sans block font-normal">
-                                {bScore.datasetVersion}
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={isWinner ? "text-[var(--accent)] font-extrabold" : ""}
+                              >
+                                {parseFloat(evalDto.score).toLocaleString()}{" "}
+                                {evalDto.scoreUnit === "percentage" ? "%" : evalDto.scoreUnit}
                               </span>
-                            )}
+                              {isWinner && (
+                                <span className="text-[10px] bg-[var(--accent)]/10 text-[var(--accent)] px-1 py-0.5 rounded font-sans font-semibold">
+                                  Top
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-[var(--secondary-text)] font-sans font-normal mt-0.5 space-y-0.5">
+                              {evalDto.benchmarkVersion && (
+                                <span className="block">Protocol: {evalDto.benchmarkVersion}</span>
+                              )}
+                              {evalDto.datasetVersion && (
+                                <span className="block">Dataset: {evalDto.datasetVersion}</span>
+                              )}
+                            </div>
                           </div>
                         ) : (
-                          <span className="text-[var(--secondary-text)] font-normal italic">
+                          <span className="text-[var(--secondary-text)] font-normal italic text-[11px]">
                             Not Reported
                           </span>
                         )}

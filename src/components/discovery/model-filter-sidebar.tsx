@@ -22,6 +22,8 @@ export interface FilterState {
   capability: string[];
   minContextWindow?: number;
   maxContextWindow?: number;
+  minPrice?: number;
+  maxPrice?: number;
 }
 
 interface ModelFilterSidebarProps {
@@ -61,7 +63,9 @@ export function ModelFilterSidebar({
     (filters.category && filters.category.length > 0) ||
     (filters.capability && filters.capability.length > 0) ||
     filters.minContextWindow !== undefined ||
-    filters.maxContextWindow !== undefined;
+    filters.maxContextWindow !== undefined ||
+    filters.minPrice !== undefined ||
+    filters.maxPrice !== undefined;
 
   const content = (
     <aside className="w-full space-y-6">
@@ -211,6 +215,62 @@ export function ModelFilterSidebar({
           </div>
         </div>
       )}
+      {/* 5. Pricing Range Filter (S2-01) */}
+      <div className="space-y-2.5 pt-3 border-t border-[var(--border-color)]">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--secondary-text)]">
+          Price Range ($ / 1M Tokens)
+        </h3>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label
+              htmlFor="min-price-input"
+              className="block text-[10px] text-[var(--secondary-text)] mb-1"
+            >
+              Min ($)
+            </label>
+            <input
+              id="min-price-input"
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="0.00"
+              value={filters.minPrice !== undefined ? filters.minPrice : ""}
+              onChange={(e) => {
+                const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                onFilterChange({
+                  ...filters,
+                  minPrice: val !== undefined && !isNaN(val) && val >= 0 ? val : undefined,
+                });
+              }}
+              className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--surface)] text-[var(--primary-text)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="max-price-input"
+              className="block text-[10px] text-[var(--secondary-text)] mb-1"
+            >
+              Max ($)
+            </label>
+            <input
+              id="max-price-input"
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="50.00"
+              value={filters.maxPrice !== undefined ? filters.maxPrice : ""}
+              onChange={(e) => {
+                const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                onFilterChange({
+                  ...filters,
+                  maxPrice: val !== undefined && !isNaN(val) && val >= 0 ? val : undefined,
+                });
+              }}
+              className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--surface)] text-[var(--primary-text)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+            />
+          </div>
+        </div>
+      </div>
     </aside>
   );
 

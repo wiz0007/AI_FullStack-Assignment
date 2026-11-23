@@ -45,7 +45,15 @@ export function ComparisonProvider({ children }: { children: React.ReactNode }) 
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          setSelectedModelIds(parsed.slice(0, MAX_COMPARISON_MODELS));
+          // S3-07: Validate every stored item, filter out invalid types/empty strings, and deduplicate
+          const validStrings = Array.from(
+            new Set(
+              parsed
+                .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+                .map((x) => x.trim())
+            )
+          );
+          setSelectedModelIds(validStrings.slice(0, MAX_COMPARISON_MODELS));
         }
       }
     } catch (e) {

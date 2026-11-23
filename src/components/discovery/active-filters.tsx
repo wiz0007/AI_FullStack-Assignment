@@ -33,7 +33,9 @@ export function ActiveFilters({
     (filters.company && filters.company.length > 0) ||
     (filters.provider && filters.provider.length > 0) ||
     (filters.category && filters.category.length > 0) ||
-    (filters.capability && filters.capability.length > 0);
+    (filters.capability && filters.capability.length > 0) ||
+    filters.minPrice !== undefined ||
+    filters.maxPrice !== undefined;
 
   if (!hasAnyFilter) return null;
 
@@ -96,6 +98,34 @@ export function ActiveFilters({
           </button>
         </Badge>
       ))}
+
+      {/* Min Price chip */}
+      {filters.minPrice !== undefined && (
+        <Badge variant="accent" className="gap-1 py-1 px-2.5">
+          <span>Min Price: ${filters.minPrice}</span>
+          <button
+            onClick={() => onRemoveFilter("minPrice")}
+            className="hover:opacity-75 focus:outline-none"
+            aria-label="Remove minimum price filter"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </Badge>
+      )}
+
+      {/* Max Price chip */}
+      {filters.maxPrice !== undefined && (
+        <Badge variant="accent" className="gap-1 py-1 px-2.5">
+          <span>Max Price: ${filters.maxPrice}</span>
+          <button
+            onClick={() => onRemoveFilter("maxPrice")}
+            className="hover:opacity-75 focus:outline-none"
+            aria-label="Remove maximum price filter"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </Badge>
+      )}
 
       <Button
         variant="ghost"

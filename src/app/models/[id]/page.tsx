@@ -286,41 +286,75 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)] text-[var(--primary-text)]">
-                {model.benchmarks.map((bm: any) => (
-                  <tr
-                    key={bm.id}
-                    className="hover:bg-[var(--secondary-surface)]/50 transition-colors"
-                  >
-                    <td className="p-4 font-semibold">
-                      <Link
-                        href={`/rankings?benchmark=${bm.benchmark.slug}`}
-                        className="hover:text-[var(--accent)] transition-colors"
-                      >
-                        {bm.benchmark.name}
-                      </Link>
-                    </td>
-                    <td className="p-4">
-                      <Badge variant="outline" className="text-[10px] capitalize">
-                        {bm.benchmark.category}
-                      </Badge>
-                    </td>
-                    <td className="p-4 font-mono font-bold text-sm text-[var(--accent)]">
-                      {parseFloat(bm.score).toLocaleString()}{" "}
-                      {bm.scoreUnit === "percentage" ? "%" : ""}
-                    </td>
-                    <td className="p-4 text-[var(--secondary-text)] font-mono text-[11px]">
-                      {bm.datasetVersion || "Standard"}
-                    </td>
-                    <td className="p-4 text-[var(--secondary-text)] font-mono text-[11px]">
-                      {bm.evaluationDate
-                        ? new Date(bm.evaluationDate).toLocaleDateString()
-                        : "Verified"}
-                    </td>
-                    <td className="p-4 text-[var(--secondary-text)] text-[11px]">
-                      {bm.source || "Official Evaluation"}
-                    </td>
-                  </tr>
-                ))}
+                {model.benchmarks.map((bm: any) => {
+                  const bSlug = bm.benchmarkSlug || bm.benchmark?.slug;
+                  const bName = bm.benchmarkName || bm.benchmark?.name || "Benchmark";
+                  const bCategory = bm.benchmarkCategory || bm.benchmark?.category || "general";
+                  const bVersion = bm.benchmarkVersion || "default";
+
+                  return (
+                    <tr
+                      key={bm.id}
+                      className="hover:bg-[var(--secondary-surface)]/50 transition-colors"
+                    >
+                      <td className="p-4 font-semibold">
+                        <Link
+                          href={`/rankings?benchmark=${bSlug}&benchmarkVersion=${encodeURIComponent(bVersion)}`}
+                          className="hover:text-[var(--accent)] transition-colors"
+                        >
+                          {bName}
+                        </Link>
+                        <span className="text-[10px] text-[var(--secondary-text)] block font-mono font-normal">
+                          Protocol: {bVersion}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <Badge variant="outline" className="text-[10px] capitalize">
+                          {bCategory}
+                        </Badge>
+                      </td>
+                      <td className="p-4 font-mono font-bold text-sm text-[var(--accent)]">
+                        {parseFloat(bm.score).toLocaleString()}{" "}
+                        {bm.scoreUnit === "percentage" ? "%" : bm.scoreUnit || ""}
+                      </td>
+                      <td className="p-4 text-[var(--secondary-text)] font-mono text-[11px]">
+                        {bm.datasetVersion || "Not specified"}
+                      </td>
+                      <td className="p-4 text-[var(--secondary-text)] font-mono text-[11px]">
+                        {bm.evaluationDate
+                          ? new Date(bm.evaluationDate).toLocaleDateString()
+                          : "Not provided"}
+                      </td>
+                      <td className="p-4 text-[var(--secondary-text)] text-[11px]">
+                        <div className="flex flex-col gap-1">
+                          <span>
+                            {bm.source ? (
+                              bm.source.startsWith("http") ? (
+                                <a
+                                  href={bm.source}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="hover:underline text-[var(--accent)]"
+                                >
+                                  {bm.evaluator || "Evaluation Source"} ↗
+                                </a>
+                              ) : (
+                                bm.source
+                              )
+                            ) : (
+                              "Not provided"
+                            )}
+                          </span>
+                          {bm.dataClassification && (
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold w-fit bg-[var(--secondary-surface)] border border-[var(--border-color)] text-[var(--secondary-text)]">
+                              {bm.dataClassification}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

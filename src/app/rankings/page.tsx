@@ -9,6 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
 import { LeaderboardTable, RankingItem } from "@/components/rankings/leaderboard-table";
+import { Pagination } from "@/components/discovery/pagination";
+import { CANONICAL_MODEL_TYPES } from "@/server/validators/model.validator";
+
+interface BenchmarkVersionMeta {
+  id: string;
+  version: string;
+  scoreUnit: string | null;
+  scoreDirection: "HIGHER_IS_BETTER" | "LOWER_IS_BETTER";
+  description: string | null;
+}
 
 interface BenchmarkMeta {
   id: string;
@@ -18,6 +28,7 @@ interface BenchmarkMeta {
   category: string;
   defaultUnit: string | null;
   scoreDirection: "HIGHER_IS_BETTER" | "LOWER_IS_BETTER";
+  versions: BenchmarkVersionMeta[];
 }
 
 function RankingsContent() {
@@ -27,10 +38,20 @@ function RankingsContent() {
 
   const [benchmarks, setBenchmarks] = useState<BenchmarkMeta[]>([]);
   const [selectedBenchmarkSlug, setSelectedBenchmarkSlug] = useState<string>("");
+  const [selectedVersion, setSelectedVersion] = useState<string>(
+    searchParams.get("benchmarkVersion") || ""
+  );
   const [selectedDomain, setSelectedDomain] = useState<string>("all");
   const [selectedModelType, setSelectedModelType] = useState<string>(
     searchParams.get("modelType") || searchParams.get("category") || "all"
   );
+  const [page, setPage] = useState<number>(parseInt(searchParams.get("page") || "1", 10) || 1);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 1,
+  });
   const [rankings, setRankings] = useState<RankingItem[]>([]);
   const [isLoadingBenchmarks, setIsLoadingBenchmarks] = useState<boolean>(true);
   const [isLoadingRankings, setIsLoadingRankings] = useState<boolean>(true);
@@ -50,10 +71,21 @@ function RankingsContent() {
           setBenchmarks(list);
 
           const paramSlug = searchParams.get("benchmark") || searchParams.get("slug");
+          const paramVersion = searchParams.get("benchmarkVersion");
+
           if (paramSlug && list.some((b) => b.slug === paramSlug)) {
             setSelectedBenchmarkSlug(paramSlug);
+            const matched = list.find((b) => b.slug === paramSlug);
+            if (paramVersion && matched?.versions.some((v) => v.version === paramVersion)) {
+              setSelectedVersion(paramVersion);
+            } else if (matched?.versions[0]) {
+              setSelectedVersion(matched.versions[0].version);
+            }
           } else if (list.length > 0) {
             setSelectedBenchmarkSlug(list[0].slug);
+            if (list[0].versions && list[0].versions[0]) {
+              setSelectedVersion(list[0].versions[0].version);
+            }
           }
         }
       } catch (err: any) {
@@ -66,50 +98,71 @@ function RankingsContent() {
     loadBenchmarks();
   }, [searchParams]);
 
-  // 2. Fetch rankings when selected benchmark or model type changes
-  const fetchRankings = useCallback(async (slug: string, modelType: string) => {
-    if (!slug) return;
-    setIsLoadingRankings(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      params.set("benchmark", slug);
-      params.set("limit", "50");
-      if (modelType && modelType !== "all") {
-        params.set("category", modelType);
-      }
+  // 2. Fetch rankings when selected benchmark, version, model type or page changes
+  const fetchRankings = useCallback(
+    async (slug: string, version: string, modelType: string, p: number) => {
+      if (!slug) return;
+      setIsLoadingRankings(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        params.set("benchmark", slug);
+        if (version) {
+          params.set("benchmarkVersion", version);
+        }
+        params.set("page", p.toString());
+        params.set("limit", "20");
+        if (modelType && modelType !== "all") {
+          params.set("category", modelType);
+        }
 
-      const res = await fetch(`/api/rankings?${params.toString()}`);
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error?.message || "Failed to load leaderboard rankings");
+        const res = await fetch(`/api/rankings?${params.toString()}`);
+        if (!res.ok) {
+          const errJson = await res.json().catch(() => ({}));
+          throw new Error(errJson.error?.message || "Failed to load leaderboard rankings");
+        }
+        const json = await res.json();
+        if (json.success && json.data) {
+          setRankings(json.data.rankings || []);
+          if (json.data.pagination) {
+            setPagination(json.data.pagination);
+          }
+        }
+      } catch (err: any) {
+        setError(err.message || "Failed to load leaderboard rankings");
+      } finally {
+        setIsLoadingRankings(false);
       }
-      const json = await res.json();
-      if (json.success && json.data) {
-        setRankings(json.data.rankings || []);
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to load leaderboard rankings");
-    } finally {
-      setIsLoadingRankings(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     if (selectedBenchmarkSlug) {
-      fetchRankings(selectedBenchmarkSlug, selectedModelType);
+      fetchRankings(selectedBenchmarkSlug, selectedVersion, selectedModelType, page);
       // Synchronize URL
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams();
       params.set("benchmark", selectedBenchmarkSlug);
+      if (selectedVersion) {
+        params.set("benchmarkVersion", selectedVersion);
+      }
       if (selectedModelType && selectedModelType !== "all") {
         params.set("modelType", selectedModelType);
-      } else {
-        params.delete("modelType");
-        params.delete("category");
+      }
+      if (page > 1) {
+        params.set("page", page.toString());
       }
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     }
-  }, [selectedBenchmarkSlug, selectedModelType, fetchRankings, pathname, router, searchParams]);
+  }, [
+    selectedBenchmarkSlug,
+    selectedVersion,
+    selectedModelType,
+    page,
+    fetchRankings,
+    pathname,
+    router,
+  ]);
 
   // Benchmark Domains list
   const domains = ["all", ...Array.from(new Set(benchmarks.map((b) => b.category)))];
@@ -120,7 +173,7 @@ function RankingsContent() {
   });
 
   const currentBenchmark = benchmarks.find((b) => b.slug === selectedBenchmarkSlug);
-  const modelTypes = ["all", "multimodal", "language", "code"];
+  const modelTypes = ["all", ...CANONICAL_MODEL_TYPES];
 
   return (
     <Container className="py-10 space-y-8">
@@ -200,7 +253,15 @@ function RankingsContent() {
               return (
                 <button
                   key={b.id}
-                  onClick={() => setSelectedBenchmarkSlug(b.slug)}
+                  onClick={() => {
+                    setSelectedBenchmarkSlug(b.slug);
+                    if (b.versions && b.versions[0]) {
+                      setSelectedVersion(b.versions[0].version);
+                    } else {
+                      setSelectedVersion("");
+                    }
+                    setPage(1);
+                  }}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
                     isSelected
                       ? "bg-[var(--secondary-surface)] border-[var(--accent)] text-[var(--accent)] shadow-sm ring-1 ring-[var(--accent)]"
@@ -215,31 +276,61 @@ function RankingsContent() {
         )}
       </div>
 
-      {/* Benchmark Info Card */}
+      {/* Benchmark Info Card & Protocol Selector */}
       {currentBenchmark && (
-        <div className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface)] flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-[var(--primary-text)]">
-                {currentBenchmark.name} Leaderboard
-              </h2>
-              <Badge variant="outline" className="capitalize text-[10px]">
-                {currentBenchmark.category}
-              </Badge>
-              <Badge variant="accent" className="text-[10px]">
-                {currentBenchmark.scoreDirection === "HIGHER_IS_BETTER"
-                  ? "Higher Score is Better"
-                  : "Lower Score is Better"}
-              </Badge>
+        <div className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface)] space-y-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-[var(--primary-text)]">
+                  {currentBenchmark.name} Leaderboard
+                </h2>
+                <Badge variant="outline" className="capitalize text-[10px]">
+                  {currentBenchmark.category}
+                </Badge>
+                <Badge variant="accent" className="text-[10px]">
+                  {currentBenchmark.scoreDirection === "HIGHER_IS_BETTER"
+                    ? "Higher Score is Better"
+                    : "Lower Score is Better"}
+                </Badge>
+              </div>
+              <p className="text-xs text-[var(--secondary-text)]">
+                {currentBenchmark.description ||
+                  "Standardized evaluation dataset measuring AI capabilities."}
+              </p>
             </div>
-            <p className="text-xs text-[var(--secondary-text)]">
-              {currentBenchmark.description ||
-                "Standardized evaluation dataset measuring AI capabilities."}
-            </p>
+            <div className="text-xs font-mono text-[var(--secondary-text)] shrink-0">
+              Evaluating {pagination.total} distinct models
+            </div>
           </div>
-          <div className="text-xs font-mono text-[var(--secondary-text)] shrink-0">
-            Evaluating {rankings.length} models
-          </div>
+
+          {/* S4-02: Protocol / Version Selector */}
+          {currentBenchmark.versions && currentBenchmark.versions.length > 0 && (
+            <div className="pt-3 border-t border-[var(--border-color)] flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-[var(--secondary-text)] mr-1">
+                Evaluation Protocol / Version:
+              </span>
+              {currentBenchmark.versions.map((v) => {
+                const isSelected = selectedVersion === v.version;
+                return (
+                  <button
+                    key={v.id}
+                    onClick={() => {
+                      setSelectedVersion(v.version);
+                      setPage(1);
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${
+                      isSelected
+                        ? "bg-[var(--accent)] text-white border-[var(--accent)]"
+                        : "bg-[var(--secondary-surface)] text-[var(--secondary-text)] border-[var(--border-color)] hover:text-[var(--primary-text)]"
+                    }`}
+                  >
+                    {v.version}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -249,7 +340,8 @@ function RankingsContent() {
           title="Failed to Load Rankings"
           message={error}
           retry={() =>
-            selectedBenchmarkSlug && fetchRankings(selectedBenchmarkSlug, selectedModelType)
+            selectedBenchmarkSlug &&
+            fetchRankings(selectedBenchmarkSlug, selectedVersion, selectedModelType, page)
           }
         />
       ) : isLoadingRankings ? (
@@ -260,12 +352,23 @@ function RankingsContent() {
           <Skeleton className="h-12 w-full rounded-xl" />
         </div>
       ) : (
-        <LeaderboardTable
-          rankings={rankings}
-          scoreDirection={currentBenchmark?.scoreDirection || "HIGHER_IS_BETTER"}
-          benchmarkName={currentBenchmark?.name || "Benchmark"}
-          benchmarkUnit={currentBenchmark?.defaultUnit}
-        />
+        <div className="space-y-6">
+          <LeaderboardTable
+            rankings={rankings}
+            scoreDirection={currentBenchmark?.scoreDirection || "HIGHER_IS_BETTER"}
+            benchmarkName={currentBenchmark?.name || "Benchmark"}
+            benchmarkUnit={currentBenchmark?.defaultUnit}
+          />
+
+          {/* S4-03: Rankings Pagination */}
+          <Pagination
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            total={pagination.total}
+            limit={pagination.limit}
+            onPageChange={(newPage) => setPage(newPage)}
+          />
+        </div>
       )}
     </Container>
   );

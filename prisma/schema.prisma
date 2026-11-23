@@ -91,18 +91,19 @@ model ModelProvider {
 }
 
 model Pricing {
-  id              String    @id @default(uuid())
-  modelProviderId String
-  inputPrice      Decimal   @db.Decimal(12, 6) // Price per unit (e.g. per 1M tokens)
-  outputPrice     Decimal   @db.Decimal(12, 6)
-  currency        String    @default("USD")
-  pricingUnit     String    @default("1M_TOKENS") // 1M_TOKENS, 1K_TOKENS, PER_REQUEST
-  effectiveFrom   DateTime  @default(now())
-  effectiveTo     DateTime?
-  source          String?
-  lastVerifiedAt  DateTime  @default(now())
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                 String    @id @default(uuid())
+  modelProviderId    String
+  inputPrice         Decimal   @db.Decimal(12, 6) // Price per unit (e.g. per 1M tokens)
+  outputPrice        Decimal   @db.Decimal(12, 6)
+  currency           String    @default("USD")
+  pricingUnit        String    @default("1M_TOKENS") // 1M_TOKENS, 1K_TOKENS, PER_REQUEST
+  effectiveFrom      DateTime  @default(now())
+  effectiveTo        DateTime?
+  source             String?
+  lastVerifiedAt     DateTime?
+  dataClassification String    @default("CURATED") // SAMPLE, CURATED, SOURCE_VERIFIED, UNVERIFIED
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   modelProvider ModelProvider @relation(fields: [modelProviderId], references: [id], onDelete: Cascade)
 
@@ -142,40 +143,59 @@ model ModelCapability {
 }
 
 model Benchmark {
-  id             String   @id @default(uuid())
-  name           String
-  slug           String   @unique
-  description    String?
-  category       String   @default("general") // reasoning, coding, math, knowledge
-  scoreUnit      String   @default("percentage") // percentage, score, elo
-  scoreDirection String   @default("HIGHER_IS_BETTER") // HIGHER_IS_BETTER, LOWER_IS_BETTER
-  version        String   @default("1.0")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  category    String   @default("general") // reasoning, coding, math, knowledge
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  modelScores ModelBenchmark[]
+  versions BenchmarkVersion[]
 
   @@index([slug])
   @@map("benchmarks")
 }
 
-model ModelBenchmark {
-  id             String    @id @default(uuid())
-  modelId        String
+model BenchmarkVersion {
+  id             String   @id @default(uuid())
   benchmarkId    String
-  score          Decimal   @db.Decimal(8, 4)
-  scoreUnit      String    @default("percentage")
-  datasetVersion String    @default("standard")
-  evaluationDate DateTime?
+  version        String   @default("1.0") // "1.0", "2.0", "v1", etc.
+  scoreUnit      String   @default("percentage") // percentage, score, elo
+  scoreDirection String   @default("HIGHER_IS_BETTER") // HIGHER_IS_BETTER, LOWER_IS_BETTER
+  description    String?
   source         String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  model     Model     @relation(fields: [modelId], references: [id], onDelete: Cascade)
-  benchmark Benchmark @relation(fields: [benchmarkId], references: [id], onDelete: Cascade)
+  benchmark   Benchmark        @relation(fields: [benchmarkId], references: [id], onDelete: Cascade)
+  evaluations ModelBenchmark[]
 
-  @@unique([modelId, benchmarkId, datasetVersion])
-  @@index([modelId])
+  @@unique([benchmarkId, version])
   @@index([benchmarkId])
+  @@map("benchmark_versions")
+}
+
+model ModelBenchmark {
+  id                 String    @id @default(uuid())
+  modelId            String
+  benchmarkVersionId String
+  score              Decimal   @db.Decimal(8, 4)
+  scoreUnit          String?   @default("percentage")
+  datasetVersion     String    @default("standard")
+  evaluationDate     DateTime?
+  source             String?
+  evaluator          String?
+  isPublished        Boolean   @default(true)
+  dataClassification String    @default("CURATED") // SAMPLE, CURATED, SOURCE_VERIFIED, UNVERIFIED
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  model            Model            @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  benchmarkVersion BenchmarkVersion @relation(fields: [benchmarkVersionId], references: [id], onDelete: Cascade)
+
+  @@index([modelId])
+  @@index([benchmarkVersionId])
+  @@index([evaluationDate])
   @@map("model_benchmarks")
 }

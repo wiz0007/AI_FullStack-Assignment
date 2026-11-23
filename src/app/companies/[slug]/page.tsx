@@ -15,12 +15,22 @@ interface CompanyDetailPageProps {
   params: {
     slug: string;
   };
+  searchParams?: {
+    page?: string;
+    limit?: string;
+  };
 }
 
-export default async function CompanyDetailPage({ params }: CompanyDetailPageProps) {
+export default async function CompanyDetailPage({ params, searchParams }: CompanyDetailPageProps) {
   let company: any = null;
+  const page = searchParams?.page ? parseInt(searchParams.page, 10) : 1;
+  const limit = searchParams?.limit ? parseInt(searchParams.limit, 10) : 6;
+
   try {
-    company = await companyService.getCompanyBySlug(params.slug);
+    company = await companyService.getCompanyBySlug(params.slug, {
+      page: isNaN(page) || page < 1 ? 1 : page,
+      limit: isNaN(limit) || limit < 1 ? 6 : limit,
+    });
   } catch (err: any) {
     if (err instanceof NotFoundError || err?.statusCode === 404 || err?.name === "NotFoundError") {
       notFound();
@@ -61,7 +71,8 @@ export default async function CompanyDetailPage({ params }: CompanyDetailPagePro
                   {company.name}
                 </h1>
                 <Badge variant="accent" className="text-xs">
-                  {company.models.length} {company.models.length === 1 ? "Model" : "Models"}
+                  {company.pagination?.total ?? company.models.length}{" "}
+                  {(company.pagination?.total ?? company.models.length) === 1 ? "Model" : "Models"}
                 </Badge>
               </div>
               {company.headquarters && (
@@ -195,6 +206,32 @@ export default async function CompanyDetailPage({ params }: CompanyDetailPagePro
                 </div>
               </Card>
             ))}
+          </div>
+        )}
+
+        {/* S3-04: Company Models Pagination */}
+        {company.pagination && company.pagination.totalPages > 1 && (
+          <div className="flex items-center justify-between pt-6 border-t border-[var(--border-color)]">
+            <span className="text-xs text-[var(--secondary-text)]">
+              Showing Page {company.pagination.page} of {company.pagination.totalPages} (
+              {company.pagination.total} total models)
+            </span>
+            <div className="flex items-center gap-2">
+              {company.pagination.hasPreviousPage && (
+                <Link href={`/companies/${params.slug}?page=${company.pagination.page - 1}`}>
+                  <Button variant="outline" size="sm">
+                    Previous
+                  </Button>
+                </Link>
+              )}
+              {company.pagination.hasNextPage && (
+                <Link href={`/companies/${params.slug}?page=${company.pagination.page + 1}`}>
+                  <Button variant="outline" size="sm">
+                    Next
+                  </Button>
+                </Link>
+              )}
+            </div>
           </div>
         )}
       </div>
