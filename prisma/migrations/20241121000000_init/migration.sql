@@ -1,0 +1,231 @@
+-- CreateTable
+CREATE TABLE "companies" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "description" TEXT,
+    "websiteUrl" TEXT,
+    "logoUrl" TEXT,
+    "headquarters" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "companies_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "models" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "modelIdentifier" TEXT NOT NULL,
+    "description" TEXT,
+    "companyId" TEXT NOT NULL,
+    "modelType" TEXT NOT NULL DEFAULT 'chat',
+    "contextWindow" INTEGER,
+    "inputModalities" TEXT[] DEFAULT ARRAY['text']::TEXT[],
+    "outputModalities" TEXT[] DEFAULT ARRAY['text']::TEXT[],
+    "releaseDate" TIMESTAMP(3),
+    "status" TEXT NOT NULL DEFAULT 'active',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "models_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "providers" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "description" TEXT,
+    "websiteUrl" TEXT,
+    "logoUrl" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "providers_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "model_providers" (
+    "id" TEXT NOT NULL,
+    "modelId" TEXT NOT NULL,
+    "providerId" TEXT NOT NULL,
+    "providerModelIdentifier" TEXT,
+    "availabilityStatus" TEXT NOT NULL DEFAULT 'available',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "model_providers_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "pricings" (
+    "id" TEXT NOT NULL,
+    "modelProviderId" TEXT NOT NULL,
+    "inputPrice" DECIMAL(12,6) NOT NULL,
+    "outputPrice" DECIMAL(12,6) NOT NULL,
+    "currency" TEXT NOT NULL DEFAULT 'USD',
+    "pricingUnit" TEXT NOT NULL DEFAULT '1M_TOKENS',
+    "effectiveFrom" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "effectiveTo" TIMESTAMP(3),
+    "source" TEXT,
+    "lastVerifiedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "pricings_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "capabilities" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "description" TEXT,
+    "category" TEXT NOT NULL DEFAULT 'general',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "capabilities_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "model_capabilities" (
+    "id" TEXT NOT NULL,
+    "modelId" TEXT NOT NULL,
+    "capabilityId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "model_capabilities_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "benchmarks" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "description" TEXT,
+    "category" TEXT NOT NULL DEFAULT 'general',
+    "scoreUnit" TEXT NOT NULL DEFAULT 'percentage',
+    "scoreDirection" TEXT NOT NULL DEFAULT 'HIGHER_IS_BETTER',
+    "version" TEXT NOT NULL DEFAULT '1.0',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "benchmarks_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "model_benchmarks" (
+    "id" TEXT NOT NULL,
+    "modelId" TEXT NOT NULL,
+    "benchmarkId" TEXT NOT NULL,
+    "score" DECIMAL(8,4) NOT NULL,
+    "scoreUnit" TEXT NOT NULL DEFAULT 'percentage',
+    "datasetVersion" TEXT NOT NULL DEFAULT 'standard',
+    "evaluationDate" TIMESTAMP(3),
+    "source" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "model_benchmarks_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "companies_slug_key" ON "companies"("slug");
+
+-- CreateIndex
+CREATE INDEX "companies_slug_idx" ON "companies"("slug");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "models_slug_key" ON "models"("slug");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "models_modelIdentifier_key" ON "models"("modelIdentifier");
+
+-- CreateIndex
+CREATE INDEX "models_companyId_idx" ON "models"("companyId");
+
+-- CreateIndex
+CREATE INDEX "models_slug_idx" ON "models"("slug");
+
+-- CreateIndex
+CREATE INDEX "models_modelIdentifier_idx" ON "models"("modelIdentifier");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "providers_slug_key" ON "providers"("slug");
+
+-- CreateIndex
+CREATE INDEX "providers_slug_idx" ON "providers"("slug");
+
+-- CreateIndex
+CREATE INDEX "model_providers_modelId_idx" ON "model_providers"("modelId");
+
+-- CreateIndex
+CREATE INDEX "model_providers_providerId_idx" ON "model_providers"("providerId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "model_providers_modelId_providerId_key" ON "model_providers"("modelId", "providerId");
+
+-- CreateIndex
+CREATE INDEX "pricings_modelProviderId_idx" ON "pricings"("modelProviderId");
+
+-- CreateIndex
+CREATE INDEX "pricings_effectiveFrom_idx" ON "pricings"("effectiveFrom");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "capabilities_slug_key" ON "capabilities"("slug");
+
+-- CreateIndex
+CREATE INDEX "capabilities_slug_idx" ON "capabilities"("slug");
+
+-- CreateIndex
+CREATE INDEX "model_capabilities_modelId_idx" ON "model_capabilities"("modelId");
+
+-- CreateIndex
+CREATE INDEX "model_capabilities_capabilityId_idx" ON "model_capabilities"("capabilityId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "model_capabilities_modelId_capabilityId_key" ON "model_capabilities"("modelId", "capabilityId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "benchmarks_slug_key" ON "benchmarks"("slug");
+
+-- CreateIndex
+CREATE INDEX "benchmarks_slug_idx" ON "benchmarks"("slug");
+
+-- CreateIndex
+CREATE INDEX "model_benchmarks_modelId_idx" ON "model_benchmarks"("modelId");
+
+-- CreateIndex
+CREATE INDEX "model_benchmarks_benchmarkId_idx" ON "model_benchmarks"("benchmarkId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "model_benchmarks_modelId_benchmarkId_datasetVersion_key" ON "model_benchmarks"("modelId", "benchmarkId", "datasetVersion");
+
+-- AddForeignKey
+ALTER TABLE "models" ADD CONSTRAINT "models_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "model_providers" ADD CONSTRAINT "model_providers_modelId_fkey" FOREIGN KEY ("modelId") REFERENCES "models"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "model_providers" ADD CONSTRAINT "model_providers_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "providers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "pricings" ADD CONSTRAINT "pricings_modelProviderId_fkey" FOREIGN KEY ("modelProviderId") REFERENCES "model_providers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "model_capabilities" ADD CONSTRAINT "model_capabilities_modelId_fkey" FOREIGN KEY ("modelId") REFERENCES "models"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "model_capabilities" ADD CONSTRAINT "model_capabilities_capabilityId_fkey" FOREIGN KEY ("capabilityId") REFERENCES "capabilities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "model_benchmarks" ADD CONSTRAINT "model_benchmarks_modelId_fkey" FOREIGN KEY ("modelId") REFERENCES "models"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "model_benchmarks" ADD CONSTRAINT "model_benchmarks_benchmarkId_fkey" FOREIGN KEY ("benchmarkId") REFERENCES "benchmarks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+

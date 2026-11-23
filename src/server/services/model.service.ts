@@ -33,10 +33,10 @@ export class ModelService {
     };
   }
 
-  async getModelBySlugOrId(identifier: string) {
-    const model = await this.repo.findByIdOrSlug(identifier);
+  async getModelBySlugOrId(slugOrId: string) {
+    const model = await this.repo.findByIdOrSlug(slugOrId);
     if (!model) {
-      throw new NotFoundError("Model", identifier);
+      throw new NotFoundError(`Model with identifier '${slugOrId}' was not found`);
     }
     return model;
   }
@@ -45,7 +45,7 @@ export class ModelService {
     return this.getModelBySlugOrId(slug);
   }
 
-  // Sprint 3: Model Comparison Service
+  // Model Comparison Service
   async compareModels(identifiers: string[]) {
     if (!identifiers || identifiers.length === 0) {
       return { models: [], missingIds: [] };
@@ -67,7 +67,6 @@ export class ModelService {
     identifiers.forEach((id) => {
       const match = modelMap.get(id.toLowerCase());
       if (match) {
-        // Prevent duplicate inclusions if both id and slug were passed
         if (!orderedModels.some((m) => m.id === match.id)) {
           orderedModels.push(match);
         }
@@ -113,7 +112,13 @@ export class ModelService {
       tasks.push(Promise.resolve([]));
     }
 
-    const [models, providers] = await Promise.all(tasks);
+    if (params.scope === "all" || params.scope === "companies") {
+      tasks.push(this.compRepo.globalSearchCompanies(query, params.limit));
+    } else {
+      tasks.push(Promise.resolve([]));
+    }
+
+    const [models, providers, companies] = await Promise.all(tasks);
 
     return {
       models: models.map((m: any) => ({
@@ -129,7 +134,13 @@ export class ModelService {
         id: p.id,
         name: p.name,
         slug: p.slug,
-        url: `/providers`,
+        url: `/providers/${p.slug}`,
+      })),
+      companies: companies.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        url: `/companies/${c.slug}`,
       })),
       query,
     };

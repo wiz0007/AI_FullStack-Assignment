@@ -17,15 +17,20 @@ export function ActiveFilters({
   onRemoveFilter,
   onClearAll,
 }: ActiveFiltersProps) {
+  const getCompanyName = (slug: string) => {
+    return metadata?.companies?.find((c) => c.slug === slug)?.name || slug;
+  };
+
   const getProviderName = (slug: string) => {
-    return metadata?.providers.find((p) => p.slug === slug)?.name || slug;
+    return metadata?.providers?.find((p) => p.slug === slug)?.name || slug;
   };
 
   const getCapabilityName = (slug: string) => {
-    return metadata?.capabilities.find((c) => c.slug === slug)?.name || slug;
+    return metadata?.capabilities?.find((c) => c.slug === slug)?.name || slug;
   };
 
   const hasAnyFilter =
+    (filters.company && filters.company.length > 0) ||
     (filters.provider && filters.provider.length > 0) ||
     (filters.category && filters.category.length > 0) ||
     (filters.capability && filters.capability.length > 0);
@@ -35,6 +40,20 @@ export function ActiveFilters({
   return (
     <div className="flex flex-wrap items-center gap-2 pt-2">
       <span className="text-xs text-[var(--secondary-text)] font-medium">Active Filters:</span>
+
+      {/* Company chips */}
+      {filters.company?.map((c) => (
+        <Badge key={`comp-${c}`} variant="accent" className="gap-1 py-1 px-2.5">
+          <span>Company: {getCompanyName(c)}</span>
+          <button
+            onClick={() => onRemoveFilter("company", c)}
+            className="hover:opacity-75 focus:outline-none"
+            aria-label={`Remove company filter ${c}`}
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </Badge>
+      ))}
 
       {/* Provider chips */}
       {filters.provider?.map((p) => (

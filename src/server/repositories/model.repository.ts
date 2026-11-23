@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { CreateModelInput, ModelQueryParams } from "../validators/model.validator";
 import { Prisma } from "@prisma/client";
+import { getCurrentPricingPrismaWhere, getRepresentativeModelPrice } from "@/lib/pricing";
 
 export class ModelRepository {
   async findMany(params: ModelQueryParams) {
@@ -23,23 +24,57 @@ export class ModelRepository {
       ];
     }
 
-    // 3. Provider Filter (Multi-select OR within providers)
-    if (params.provider && params.provider.length > 0) {
-      where.providers = {
-        some: {
-          provider: {
-            slug: { in: params.provider },
-          },
-        },
+    // 3. Company Filter (Multi-select OR within companies)
+    if (params.company && params.company.length > 0) {
+      where.company = {
+        slug: { in: params.company },
       };
     }
 
-    // 4. Category Filter (Multi-select OR within categories)
+    // 4. Provider & Pricing Filter Composition (Section 6.3 - guarantees both conditions apply to the same ModelProvider)
+    const hasProviderFilter = params.provider && params.provider.length > 0;
+    const hasPriceFilter = params.minPrice !== undefined || params.maxPrice !== undefined;
+
+    if (hasProviderFilter || hasPriceFilter) {
+      const providerCondition: Prisma.ModelProviderWhereInput = {};
+
+      if (hasProviderFilter) {
+        providerCondition.provider = {
+          slug: { in: params.provider },
+        };
+      }
+
+      if (hasPriceFilter) {
+        const priceFilter: Prisma.DecimalFilter = {};
+        if (params.minPrice !== undefined) {
+          priceFilter.gte = new Prisma.Decimal(params.minPrice);
+        }
+        if (params.maxPrice !== undefined) {
+          priceFilter.lte = new Prisma.Decimal(params.maxPrice);
+        }
+
+        const currentPricingCondition = getCurrentPricingPrismaWhere();
+        providerCondition.pricing = {
+          some: {
+            ...currentPricingCondition,
+            currency: "USD",
+            pricingUnit: "1M_TOKENS",
+            inputPrice: priceFilter,
+          },
+        };
+      }
+
+      where.providers = {
+        some: providerCondition,
+      };
+    }
+
+    // 5. Category Filter (Multi-select OR within categories)
     if (params.category && params.category.length > 0) {
       where.modelType = { in: params.category };
     }
 
-    // 5. Capability Filter (Multi-select OR within capabilities)
+    // 6. Capability Filter (Multi-select OR within capabilities)
     if (params.capability && params.capability.length > 0) {
       where.capabilities = {
         some: {
@@ -50,7 +85,7 @@ export class ModelRepository {
       };
     }
 
-    // 6. Context Window Range (exclude nulls from numerical match)
+    // 7. Context Window Range
     if (params.minContextWindow !== undefined || params.maxContextWindow !== undefined) {
       const contextFilter: Prisma.IntNullableFilter = {};
       if (params.minContextWindow !== undefined) {
@@ -62,29 +97,71 @@ export class ModelRepository {
       where.contextWindow = contextFilter;
     }
 
-    // 7. Pricing Range
-    if (params.minPrice !== undefined || params.maxPrice !== undefined) {
-      const priceFilter: Prisma.DecimalFilter = {};
-      if (params.minPrice !== undefined) {
-        priceFilter.gte = new Prisma.Decimal(params.minPrice);
-      }
-      if (params.maxPrice !== undefined) {
-        priceFilter.lte = new Prisma.Decimal(params.maxPrice);
-      }
-      where.providers = {
-        ...(where.providers as any),
-        some: {
-          ...((where.providers as any)?.some || {}),
+    const isPricingSort =
+      params.sort === "pricing_asc" ||
+      params.sort === "price_asc" ||
+      params.sort === "pricing_desc" ||
+      params.sort === "price_desc";
+
+    const commonInclude = {
+      company: true,
+      providers: {
+        include: {
+          provider: true,
           pricing: {
-            some: {
-              inputPrice: priceFilter,
-            },
+            where: getCurrentPricingPrismaWhere(),
+            orderBy: [{ effectiveFrom: "desc" as const }, { id: "asc" as const }],
           },
         },
-      };
+      },
+      capabilities: {
+        include: {
+          capability: true,
+        },
+      },
+      benchmarks: {
+        include: {
+          benchmark: true,
+        },
+      },
+    };
+
+    // If sorting by pricing across relations, fetch all matching models and sort using canonical policy
+    if (isPricingSort) {
+      const allMatching = await prisma.model.findMany({
+        where,
+        include: commonInclude,
+      });
+
+      const total = allMatching.length;
+      const isAsc = params.sort === "pricing_asc" || params.sort === "price_asc";
+
+      allMatching.sort((a, b) => {
+        const repA = getRepresentativeModelPrice(a);
+        const repB = getRepresentativeModelPrice(b);
+        const priceA = repA ? parseFloat(repA.inputPrice) : null;
+        const priceB = repB ? parseFloat(repB.inputPrice) : null;
+
+        // Unavailable prices are placed last in both ascending and descending
+        if (priceA === null && priceB === null) return a.id.localeCompare(b.id);
+        if (priceA === null) return 1;
+        if (priceB === null) return -1;
+
+        if (priceA !== priceB) {
+          return isAsc ? priceA - priceB : priceB - priceA;
+        }
+
+        // Deterministic secondary tie-breaker
+        return a.id.localeCompare(b.id);
+      });
+
+      const skip = (params.page - 1) * params.limit;
+      const items = allMatching.slice(skip, skip + params.limit);
+
+      return { items, total };
     }
 
-    // 8. Sorting with stable secondary tie-breaker
+    // Standard database sorting with secondary tie-breaker
     const orderBy: Prisma.ModelOrderByWithRelationInput[] = [];
     switch (params.sort) {
       case "name_asc":
@@ -94,15 +171,19 @@ export class ModelRepository {
         orderBy.push({ name: "desc" }, { id: "asc" });
         break;
       case "releaseDate_desc":
+      case "date_desc":
         orderBy.push({ releaseDate: { sort: "desc", nulls: "last" } }, { id: "asc" });
         break;
       case "releaseDate_asc":
+      case "date_asc":
         orderBy.push({ releaseDate: { sort: "asc", nulls: "last" } }, { id: "asc" });
         break;
       case "contextWindow_desc":
+      case "context_desc":
         orderBy.push({ contextWindow: { sort: "desc", nulls: "last" } }, { id: "asc" });
         break;
       case "contextWindow_asc":
+      case "context_asc":
         orderBy.push({ contextWindow: { sort: "asc", nulls: "last" } }, { id: "asc" });
         break;
       case "relevance":
@@ -116,36 +197,48 @@ export class ModelRepository {
     const [items, total] = await Promise.all([
       prisma.model.findMany({
         where,
-        include: {
-          company: true,
-          providers: {
-            include: {
-              provider: true,
-              pricing: {
-                orderBy: { effectiveFrom: "desc" },
-                take: 1,
-              },
-            },
-          },
-          capabilities: {
-            include: {
-              capability: true,
-            },
-          },
-          benchmarks: {
-            include: {
-              benchmark: true,
-            },
-          },
-        },
+        include: commonInclude,
+        orderBy,
         skip,
         take: params.limit,
-        orderBy,
       }),
       prisma.model.count({ where }),
     ]);
 
-    return { items, total };
+    return {
+      items,
+      total,
+    };
+  }
+
+  async findByIdOrSlug(idOrSlug: string) {
+    return prisma.model.findFirst({
+      where: {
+        OR: [{ id: idOrSlug }, { slug: idOrSlug }],
+      },
+      include: {
+        company: true,
+        providers: {
+          include: {
+            provider: true,
+            pricing: {
+              where: getCurrentPricingPrismaWhere(),
+              orderBy: [{ effectiveFrom: "desc" }, { id: "asc" }],
+            },
+          },
+        },
+        capabilities: {
+          include: {
+            capability: true,
+          },
+        },
+        benchmarks: {
+          include: {
+            benchmark: true,
+          },
+        },
+      },
+    });
   }
 
   async findBySlug(slug: string) {
@@ -157,7 +250,8 @@ export class ModelRepository {
           include: {
             provider: true,
             pricing: {
-              orderBy: { effectiveFrom: "desc" },
+              where: getCurrentPricingPrismaWhere(),
+              orderBy: [{ effectiveFrom: "desc" }, { id: "asc" }],
             },
           },
         },
@@ -175,38 +269,7 @@ export class ModelRepository {
     });
   }
 
-  async findByIdOrSlug(identifier: string) {
-    // Check by slug first, then by id
-    const bySlug = await this.findBySlug(identifier);
-    if (bySlug) return bySlug;
-
-    return prisma.model.findUnique({
-      where: { id: identifier },
-      include: {
-        company: true,
-        providers: {
-          include: {
-            provider: true,
-            pricing: {
-              orderBy: { effectiveFrom: "desc" },
-            },
-          },
-        },
-        capabilities: {
-          include: {
-            capability: true,
-          },
-        },
-        benchmarks: {
-          include: {
-            benchmark: true,
-          },
-        },
-      },
-    });
-  }
-
-  // Sprint 3: Single bounded query for multiple comparison models
+  // Single bounded query for multiple comparison models
   async findByIds(identifiers: string[]) {
     if (!identifiers || identifiers.length === 0) return [];
 
@@ -220,7 +283,8 @@ export class ModelRepository {
           include: {
             provider: true,
             pricing: {
-              orderBy: { effectiveFrom: "desc" },
+              where: getCurrentPricingPrismaWhere(),
+              orderBy: [{ effectiveFrom: "desc" }, { id: "asc" }],
             },
           },
         },
@@ -239,7 +303,21 @@ export class ModelRepository {
   }
 
   async getFilterMetadata() {
-    const [providers, capabilities, categories, contextStats] = await Promise.all([
+    const [companies, providers, capabilities, categories, contextStats] = await Promise.all([
+      prisma.company.findMany({
+        where: {
+          models: { some: { status: "active" } },
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          _count: {
+            select: { models: true },
+          },
+        },
+        orderBy: { name: "asc" },
+      }),
       prisma.provider.findMany({
         where: {
           models: { some: { model: { status: "active" } } },
@@ -282,6 +360,12 @@ export class ModelRepository {
     ]);
 
     return {
+      companies: companies.map((c) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        count: c._count.models,
+      })),
       providers: providers.map((p) => ({
         id: p.id,
         name: p.name,
@@ -318,7 +402,11 @@ export class ModelRepository {
       },
       include: {
         company: {
-          select: { name: true, slug: true },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
         },
       },
       take: limit,
@@ -328,9 +416,18 @@ export class ModelRepository {
 
   async create(data: CreateModelInput) {
     return prisma.model.create({
-      data,
-      include: {
-        company: true,
+      data: {
+        name: data.name,
+        slug: data.slug,
+        modelIdentifier: data.modelIdentifier,
+        description: data.description,
+        companyId: data.companyId,
+        modelType: data.modelType,
+        contextWindow: data.contextWindow,
+        inputModalities: data.inputModalities,
+        outputModalities: data.outputModalities,
+        releaseDate: data.releaseDate,
+        status: data.status,
       },
     });
   }
