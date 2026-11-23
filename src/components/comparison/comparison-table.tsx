@@ -163,7 +163,7 @@ export function ComparisonTable({ models, onRemoveModel, maxLimit }: ComparisonT
               className={`p-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface)] ${getRowClass(hasCategoryDiff)}`}
             >
               <span className="text-[11px] font-bold text-[var(--secondary-text)] uppercase block mb-1.5">
-                Category
+                Model Category
               </span>
               <div className="space-y-1">
                 {models.map((m) => (
@@ -184,7 +184,7 @@ export function ComparisonTable({ models, onRemoveModel, maxLimit }: ComparisonT
               className={`p-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface)] ${getRowClass(hasContextDiff)}`}
             >
               <span className="text-[11px] font-bold text-[var(--secondary-text)] uppercase block mb-1.5">
-                Context Window
+                Context Capacity
               </span>
               <div className="space-y-1">
                 {models.map((m) => (

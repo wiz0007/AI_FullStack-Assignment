@@ -32,9 +32,9 @@ test.describe("Sprint 3: Model Details & Comparison E2E Flows", () => {
     await page.goto("/compare?models=gpt-4o,claude-3-5-sonnet");
 
     // Table specification headers should be rendered
-    await expect(page.getByText("Context Window")).toBeVisible();
-    await expect(page.getByText("Input Price (per 1M)")).toBeVisible();
-    await expect(page.getByText("Output Price (per 1M)")).toBeVisible();
+    await expect(page.getByText("Context Window").first()).toBeVisible();
+    await expect(page.getByText("Input Price (per 1M)").first()).toBeVisible();
+    await expect(page.getByText("Output Price (per 1M)").first()).toBeVisible();
 
     // Check share button
     const shareBtn = page.getByRole("button", { name: /Share Comparison/i });
