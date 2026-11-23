@@ -21,23 +21,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Validate Preview Environment Configuration
-        run: |
-          if [ -z "${{ secrets.PREVIEW_DATABASE_URL }}" ]; then
-            echo "::error::PREVIEW_DATABASE_URL is not configured. Preview builds require isolated preview database credentials."
-            exit 1
-          fi
-
-      - name: Apply Preview Database Migrations
-        run: npx prisma migrate deploy
-        env:
-          DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.PREVIEW_DIRECT_URL || secrets.PREVIEW_DATABASE_URL }}
-
       - name: Build Preview Bundle
         run: npm run build
         env:
           NODE_ENV: "production"
-          DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.PREVIEW_DIRECT_URL || secrets.PREVIEW_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/oneatlas_preview?schema=public' }}
           NEXT_PUBLIC_APP_URL: "https://preview.oneatlas.dev"

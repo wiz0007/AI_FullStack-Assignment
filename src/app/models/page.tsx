@@ -43,7 +43,6 @@ export default function ModelsDiscoveryPage() {
     provider: parseArrayParam("provider"),
     category: parseArrayParam("category"),
     capability: parseArrayParam("capability"),
-    company: parseArrayParam("company"),
   };
 
   // State
@@ -85,7 +84,6 @@ export default function ModelsDiscoveryPage() {
       if (flt.category && flt.category.length > 0) params.set("category", flt.category.join(","));
       if (flt.capability && flt.capability.length > 0)
         params.set("capability", flt.capability.join(","));
-      if (flt.company && flt.company.length > 0) params.set("company", flt.company.join(","));
       if (s && s !== "relevance") params.set("sort", s);
       if (p > 1) params.set("page", p.toString());
 
@@ -131,7 +129,6 @@ export default function ModelsDiscoveryPage() {
       if (filters.provider?.length) params.set("provider", filters.provider.join(","));
       if (filters.category?.length) params.set("category", filters.category.join(","));
       if (filters.capability?.length) params.set("capability", filters.capability.join(","));
-      if (filters.company?.length) params.set("company", filters.company.join(","));
       if (sort && sort !== "relevance") params.set("sort", sort);
       params.set("page", page.toString());
       params.set("limit", "12");
@@ -206,7 +203,7 @@ export default function ModelsDiscoveryPage() {
   };
 
   const handleClearAllFilters = () => {
-    setFilters({ provider: [], category: [], capability: [], company: [] });
+    setFilters({ provider: [], category: [], capability: [] });
     setSearchQuery("");
     setDebouncedQuery("");
     setSort("relevance");
@@ -223,14 +220,12 @@ export default function ModelsDiscoveryPage() {
   const hasFilter =
     (filters.provider && filters.provider.length > 0) ||
     (filters.category && filters.category.length > 0) ||
-    (filters.capability && filters.capability.length > 0) ||
-    (filters.company && filters.company.length > 0);
+    (filters.capability && filters.capability.length > 0);
 
   const activeFilterCount =
     (filters.provider?.length || 0) +
     (filters.category?.length || 0) +
-    (filters.capability?.length || 0) +
-    (filters.company?.length || 0);
+    (filters.capability?.length || 0);
 
   return (
     <Container className="py-10 space-y-8">

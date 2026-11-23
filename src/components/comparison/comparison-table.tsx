@@ -6,7 +6,6 @@ import { X, Plus, Sparkles, Check, Minus, HelpCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCompactNumber, formatCurrency } from "@/lib/utils";
-import { getRepresentativeModelPrice } from "@/lib/pricing";
 
 export interface ComparisonTableProps {
   models: any[];
@@ -50,14 +49,8 @@ export function ComparisonTable({ models, onRemoveModel, maxLimit }: ComparisonT
 
   const hasContextDiff = isDiff((m) => m.contextWindow);
   const hasCategoryDiff = isDiff((m) => m.modelType);
-  const hasInputPriceDiff = isDiff((m) => getRepresentativeModelPrice(m)?.inputPrice);
-  const hasOutputPriceDiff = isDiff((m) => getRepresentativeModelPrice(m)?.outputPrice);
-  const hasInputModalitiesDiff = isDiff((m) =>
-    (m.inputModalities || ["text"]).slice().sort().join(",")
-  );
-  const hasOutputModalitiesDiff = isDiff((m) =>
-    (m.outputModalities || ["text"]).slice().sort().join(",")
-  );
+  const hasInputPriceDiff = isDiff((m) => m.providers?.[0]?.pricing?.[0]?.inputPrice);
+  const hasOutputPriceDiff = isDiff((m) => m.providers?.[0]?.pricing?.[0]?.outputPrice);
 
   const getRowClass = (differ: boolean) =>
     differ && highlightDifferences
@@ -180,18 +173,13 @@ export function ComparisonTable({ models, onRemoveModel, maxLimit }: ComparisonT
                 Input Price (per 1M)
               </td>
               {models.map((m) => {
-                const pricing = getRepresentativeModelPrice(m);
+                const pricing = m.providers?.[0]?.pricing?.[0];
                 return (
                   <td key={m.id} className="p-4 font-mono">
                     {pricing?.inputPrice ? (
-                      <div>
-                        <span className="font-bold">{formatCurrency(pricing.inputPrice)}</span>
-                        <span className="text-[10px] text-[var(--secondary-text)] block font-sans">
-                          via {pricing.providerName}
-                        </span>
-                      </div>
+                      formatCurrency(pricing.inputPrice)
                     ) : (
-                      <span className="text-[var(--secondary-text)] italic font-sans text-[11px]">
+                      <span className="text-[var(--secondary-text)] italic">
                         Pricing Unavailable
                       </span>
                     )}
@@ -209,18 +197,13 @@ export function ComparisonTable({ models, onRemoveModel, maxLimit }: ComparisonT
                 Output Price (per 1M)
               </td>
               {models.map((m) => {
-                const pricing = getRepresentativeModelPrice(m);
+                const pricing = m.providers?.[0]?.pricing?.[0];
                 return (
                   <td key={m.id} className="p-4 font-mono">
                     {pricing?.outputPrice ? (
-                      <div>
-                        <span className="font-bold">{formatCurrency(pricing.outputPrice)}</span>
-                        <span className="text-[10px] text-[var(--secondary-text)] block font-sans">
-                          via {pricing.providerName}
-                        </span>
-                      </div>
+                      formatCurrency(pricing.outputPrice)
                     ) : (
-                      <span className="text-[var(--secondary-text)] italic font-sans text-[11px]">
+                      <span className="text-[var(--secondary-text)] italic">
                         Pricing Unavailable
                       </span>
                     )}
@@ -233,7 +216,7 @@ export function ComparisonTable({ models, onRemoveModel, maxLimit }: ComparisonT
             </tr>
 
             {/* Input Modalities */}
-            <tr className={getRowClass(hasInputModalitiesDiff)}>
+            <tr>
               <td className="p-4 font-semibold text-[var(--secondary-text)] sticky left-0 bg-[var(--surface)]">
                 Input Modalities
               </td>
@@ -254,7 +237,7 @@ export function ComparisonTable({ models, onRemoveModel, maxLimit }: ComparisonT
             </tr>
 
             {/* Output Modalities */}
-            <tr className={getRowClass(hasOutputModalitiesDiff)}>
+            <tr>
               <td className="p-4 font-semibold text-[var(--secondary-text)] sticky left-0 bg-[var(--surface)]">
                 Output Modalities
               </td>
@@ -323,69 +306,32 @@ export function ComparisonTable({ models, onRemoveModel, maxLimit }: ComparisonT
               </tr>
             )}
 
-            {allBenchmarks.map(([bSlug, bName]) => {
-              const diff = isDiff((m) => {
-                const b = (m.benchmarks || []).find((bm: any) => bm.benchmark.slug === bSlug);
-                return b ? parseFloat(b.score) : null;
-              });
-
-              // Check if dataset versions differ across models for this benchmark
-              const datasetVersions = models
-                .map(
-                  (m) =>
-                    (m.benchmarks || []).find((bm: any) => bm.benchmark.slug === bSlug)
-                      ?.datasetVersion
-                )
-                .filter(Boolean);
-              const hasDifferingDatasets = new Set(datasetVersions).size > 1;
-
-              return (
-                <tr key={bSlug} className={getRowClass(diff)}>
-                  <td className="p-4 font-medium text-[var(--secondary-text)] sticky left-0 bg-[var(--surface)]">
-                    <div>
-                      <span>{bName}</span>
-                      {hasDifferingDatasets && (
-                        <span
-                          title="Dataset versions vary across compared models for this benchmark"
-                          className="ml-1.5 text-[10px] text-amber-500 font-normal inline-block"
-                        >
-                          ⚠️ differing versions
+            {allBenchmarks.map(([bSlug, bName]) => (
+              <tr key={bSlug}>
+                <td className="p-4 font-medium text-[var(--secondary-text)] sticky left-0 bg-[var(--surface)]">
+                  {bName}
+                </td>
+                {models.map((m) => {
+                  const bScore = (m.benchmarks || []).find((b: any) => b.benchmark.slug === bSlug);
+                  return (
+                    <td key={m.id} className="p-4 font-mono font-bold">
+                      {bScore ? (
+                        <span>
+                          {parseFloat(bScore.score)} {bScore.scoreUnit === "percentage" ? "%" : ""}
+                        </span>
+                      ) : (
+                        <span className="text-[var(--secondary-text)] font-normal italic">
+                          Not Reported
                         </span>
                       )}
-                    </div>
-                  </td>
-                  {models.map((m) => {
-                    const bScore = (m.benchmarks || []).find(
-                      (b: any) => b.benchmark.slug === bSlug
-                    );
-                    return (
-                      <td key={m.id} className="p-4 font-mono font-bold">
-                        {bScore ? (
-                          <div>
-                            <span>
-                              {parseFloat(bScore.score)}{" "}
-                              {bScore.scoreUnit === "percentage" ? "%" : ""}
-                            </span>
-                            {bScore.datasetVersion && (
-                              <span className="text-[10px] text-[var(--secondary-text)] font-sans block font-normal">
-                                {bScore.datasetVersion}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-[var(--secondary-text)] font-normal italic">
-                            Not Reported
-                          </span>
-                        )}
-                      </td>
-                    );
-                  })}
-                  {models.length < maxLimit && (
-                    <td className="p-4 border-l border-[var(--border-color)]/50" />
-                  )}
-                </tr>
-              );
-            })}
+                    </td>
+                  );
+                })}
+                {models.length < maxLimit && (
+                  <td className="p-4 border-l border-[var(--border-color)]/50" />
+                )}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

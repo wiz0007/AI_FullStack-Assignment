@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/card";
 import { AddToComparisonButton } from "@/components/comparison/add-to-comparison-button";
 import { formatCompactNumber, formatCurrency } from "@/lib/utils";
-import { getRepresentativeModelPrice } from "@/lib/pricing";
 
 export interface ModelCardProps {
   model: {
@@ -55,9 +54,10 @@ export interface ModelCardProps {
 }
 
 export function ModelCard({ model }: ModelCardProps) {
-  // Canonical representative pricing across all providers
-  const primaryPricing = getRepresentativeModelPrice(model);
-  const hasPricing = primaryPricing !== null;
+  // Extract primary pricing from first provider if available
+  const primaryPricing = model.providers?.[0]?.pricing?.[0];
+  const hasPricing =
+    primaryPricing && primaryPricing.inputPrice !== undefined && primaryPricing.inputPrice !== null;
 
   // Format context window (e.g. 128k ctx, or Unavailable)
   const contextFormatted =
@@ -101,10 +101,8 @@ export function ModelCard({ model }: ModelCardProps) {
             <DollarSign className="w-3.5 h-3.5 text-[var(--accent)]" aria-hidden="true" />
             {hasPricing ? (
               <span className="font-medium text-[var(--primary-text)]">
-                {formatCurrency(primaryPricing.inputPrice)}
-                {primaryPricing.outputPrice
-                  ? ` / ${formatCurrency(primaryPricing.outputPrice)}`
-                  : ""}
+                {formatCurrency(primaryPricing.inputPrice)} /{" "}
+                {formatCurrency(primaryPricing.outputPrice)}
               </span>
             ) : (
               <span className="italic text-[var(--secondary-text)]">Pricing Unavailable</span>
