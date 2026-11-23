@@ -158,13 +158,7 @@ describe("Discovery API & Service Integration Tests (Sprint 2)", () => {
         .mockResolvedValue([{ id: "p-1", name: "OpenAI Direct API", slug: "openai-direct" }]),
     } as unknown as ProviderRepository;
 
-    const mockCompRepo = {
-      globalSearchCompanies: vi
-        .fn()
-        .mockResolvedValue([{ id: "c-1", name: "OpenAI", slug: "openai" }]),
-    } as unknown as CompanyRepository;
-
-    const service = new ModelService(mockModelRepo, mockProvRepo, mockCompRepo);
+    const service = new ModelService(mockModelRepo, mockProvRepo);
     const results = await service.globalSearch({ q: "openai", scope: "all", limit: 5 });
 
     expect(results.models.length).toBe(1);
@@ -172,7 +166,5 @@ describe("Discovery API & Service Integration Tests (Sprint 2)", () => {
     expect(results.models[0].url).toBe("/models/gpt-4o");
     expect(results.providers.length).toBe(1);
     expect(results.providers[0].name).toBe("OpenAI Direct API");
-    expect(results.companies.length).toBe(1);
-    expect(results.companies[0].name).toBe("OpenAI");
   });
 });

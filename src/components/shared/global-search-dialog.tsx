@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Search, X, Sparkles, Server, Building2, ArrowRight, Loader2 } from "lucide-react";
+import { Search, X, Sparkles, Server, ArrowRight, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface SearchResultItem {
@@ -21,29 +21,23 @@ export function GlobalSearchDialog({ isOpen, onClose }: { isOpen: boolean; onClo
   const [results, setResults] = useState<{
     models: SearchResultItem[];
     providers: SearchResultItem[];
-    companies: SearchResultItem[];
   }>({
     models: [],
     providers: [],
-    companies: [],
   });
   const [isLoading, setIsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Flattened list for keyboard navigation
-  const flatItems: SearchResultItem[] = [
-    ...results.models,
-    ...results.providers,
-    ...results.companies,
-  ];
+  const flatItems: SearchResultItem[] = [...results.models, ...results.providers];
 
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 50);
     } else {
       setQuery("");
-      setResults({ models: [], providers: [], companies: [] });
+      setResults({ models: [], providers: [] });
       setSelectedIndex(0);
     }
   }, [isOpen]);
@@ -51,7 +45,7 @@ export function GlobalSearchDialog({ isOpen, onClose }: { isOpen: boolean; onClo
   // Debounced query execution
   useEffect(() => {
     if (!query.trim()) {
-      setResults({ models: [], providers: [], companies: [] });
+      setResults({ models: [], providers: [] });
       setIsLoading(false);
       return;
     }
@@ -70,7 +64,6 @@ export function GlobalSearchDialog({ isOpen, onClose }: { isOpen: boolean; onClo
           setResults({
             models: json.data.models || [],
             providers: json.data.providers || [],
-            companies: json.data.companies || [],
           });
           setSelectedIndex(0);
         }
@@ -238,39 +231,6 @@ export function GlobalSearchDialog({ isOpen, onClose }: { isOpen: boolean; onClo
                     <div className="flex items-center gap-2.5">
                       <Server className="w-4 h-4 text-[var(--accent)]" />
                       <div className="text-xs font-semibold">{p.name}</div>
-                    </div>
-                    <ArrowRight className="w-3.5 h-3.5 text-[var(--secondary-text)]" />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Companies & Labs Section */}
-          {results.companies.length > 0 && (
-            <div className="space-y-1 pt-2">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--secondary-text)] px-3">
-                AI Companies & Labs
-              </span>
-              {results.companies.map((c, idx) => {
-                const itemIndex = results.models.length + results.providers.length + idx;
-                const isSelected = selectedIndex === itemIndex;
-                return (
-                  <div
-                    key={c.id}
-                    onClick={() => {
-                      router.push(c.url);
-                      onClose();
-                    }}
-                    className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors ${
-                      isSelected
-                        ? "bg-[var(--secondary-surface)] text-[var(--accent)]"
-                        : "hover:bg-[var(--secondary-surface)] text-[var(--primary-text)]"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Building2 className="w-4 h-4 text-[var(--accent)]" />
-                      <div className="text-xs font-semibold">{c.name}</div>
                     </div>
                     <ArrowRight className="w-3.5 h-3.5 text-[var(--secondary-text)]" />
                   </div>

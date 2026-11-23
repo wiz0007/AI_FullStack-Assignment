@@ -7,7 +7,6 @@ export interface ComparisonContextType {
   selectedModelIds: string[];
   addModel: (idOrSlug: string) => boolean;
   removeModel: (idOrSlug: string) => void;
-  setComparison: (ids: string[]) => void;
   clearComparison: () => void;
   isModelSelected: (idOrSlug: string) => boolean;
   canAddModel: boolean;
@@ -20,7 +19,6 @@ const defaultComparisonContext: ComparisonContextType = {
   selectedModelIds: [],
   addModel: () => false,
   removeModel: () => {},
-  setComparison: () => {},
   clearComparison: () => {},
   isModelSelected: () => false,
   canAddModel: true,
@@ -106,22 +104,6 @@ export function ComparisonProvider({ children }: { children: React.ReactNode }) 
     setLimitReachedMessage(null);
   }, []);
 
-  const setComparison = useCallback((ids: string[]) => {
-    const uniqueIds: string[] = [];
-    ids.forEach((id) => {
-      const trimmed = id.trim();
-      if (
-        trimmed &&
-        !uniqueIds.some((u) => u.toLowerCase() === trimmed.toLowerCase()) &&
-        uniqueIds.length < MAX_COMPARISON_MODELS
-      ) {
-        uniqueIds.push(trimmed);
-      }
-    });
-    setSelectedModelIds(uniqueIds);
-    setLimitReachedMessage(null);
-  }, []);
-
   const clearComparison = useCallback(() => {
     setSelectedModelIds([]);
     setLimitReachedMessage(null);
@@ -137,7 +119,6 @@ export function ComparisonProvider({ children }: { children: React.ReactNode }) 
         selectedModelIds,
         addModel,
         removeModel,
-        setComparison,
         clearComparison,
         isModelSelected,
         canAddModel,
