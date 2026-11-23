@@ -10,13 +10,13 @@ interface SortSelectProps {
 
 export function SortSelect({ value, onChange, className = "" }: SortSelectProps) {
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      <ArrowDownUp className="w-3.5 h-3.5 text-[var(--secondary-text)] hidden sm:inline" />
+    <div className={`flex items-center gap-1.5 ${className}`}>
+      <ArrowDownUp className="w-3.5 h-3.5 text-[var(--secondary-text)] shrink-0 hidden sm:inline" />
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as ModelSortOption)}
         aria-label="Sort models"
-        className="text-xs rounded-lg border border-[var(--border-color)] bg-[var(--surface)] text-[var(--primary-text)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] cursor-pointer"
+        className="text-xs rounded-lg border border-[var(--border-color)] bg-[var(--surface)] text-[var(--primary-text)] px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] cursor-pointer max-w-[150px] xs:max-w-none truncate"
       >
         <option value="relevance">Default (Relevance)</option>
         <option value="name_asc">Name: A to Z</option>

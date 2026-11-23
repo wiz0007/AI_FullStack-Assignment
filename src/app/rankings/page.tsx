@@ -200,14 +200,14 @@ function RankingsContent() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface)]">
           {/* Benchmark Domain Tabs */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-[var(--secondary-text)] mr-1">
+            <span className="text-xs font-semibold text-[var(--secondary-text)] mr-1 shrink-0">
               Benchmark Domain:
             </span>
             {domains.map((dom) => (
               <button
                 key={dom}
                 onClick={() => setSelectedDomain(dom)}
-                className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors ${
+                className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors whitespace-nowrap shrink-0 ${
                   selectedDomain === dom
                     ? "bg-[var(--accent)] text-white shadow-sm"
                     : "bg-[var(--secondary-surface)] text-[var(--secondary-text)] border border-[var(--border-color)] hover:text-[var(--primary-text)]"
@@ -220,14 +220,14 @@ function RankingsContent() {
 
           {/* Model Category / Type Filter */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-[var(--secondary-text)] mr-1">
+            <span className="text-xs font-semibold text-[var(--secondary-text)] mr-1 shrink-0">
               Model Category:
             </span>
             {modelTypes.map((mt) => (
               <button
                 key={mt}
                 onClick={() => setSelectedModelType(mt)}
-                className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors ${
+                className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors whitespace-nowrap shrink-0 ${
                   selectedModelType === mt
                     ? "bg-[var(--primary-text)] text-[var(--surface)] shadow-sm"
                     : "bg-[var(--secondary-surface)] text-[var(--secondary-text)] border border-[var(--border-color)] hover:text-[var(--primary-text)]"
@@ -307,7 +307,7 @@ function RankingsContent() {
           {/* S4-02: Protocol / Version Selector */}
           {currentBenchmark.versions && currentBenchmark.versions.length > 0 && (
             <div className="pt-3 border-t border-[var(--border-color)] flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-[var(--secondary-text)] mr-1">
+              <span className="text-xs font-semibold text-[var(--secondary-text)] mr-1 shrink-0">
                 Evaluation Protocol / Version:
               </span>
               {currentBenchmark.versions.map((v) => {
@@ -319,7 +319,7 @@ function RankingsContent() {
                       setSelectedVersion(v.version);
                       setPage(1);
                     }}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border whitespace-nowrap shrink-0 ${
                       isSelected
                         ? "bg-[var(--accent)] text-white border-[var(--accent)]"
                         : "bg-[var(--secondary-surface)] text-[var(--secondary-text)] border-[var(--border-color)] hover:text-[var(--primary-text)]"

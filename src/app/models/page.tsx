@@ -320,14 +320,31 @@ export default function ModelsDiscoveryPage() {
           </p>
         </div>
 
-        {/* Search Bar */}
-        <div className="w-full md:w-80">
-          <SearchInput
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            onClear={handleClearSearch}
-            placeholder="Search models, providers, specs..."
-          />
+        {/* Search Bar + Mobile Filter Button on small screens */}
+        <div className="w-full md:w-80 flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <SearchInput
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onClear={handleClearSearch}
+              placeholder="Search models, providers, specs..."
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMobileFilterOpen(true)}
+            className="lg:hidden shrink-0 h-10 px-3 text-xs gap-1.5"
+            aria-label="Open filter sidebar"
+          >
+            <Filter className="w-3.5 h-3.5 text-[var(--accent)]" />
+            <span className="hidden xs:inline">Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="w-4 h-4 rounded-full bg-[var(--accent)] text-white text-[10px] flex items-center justify-center font-bold">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
         </div>
       </div>
 
@@ -345,35 +362,26 @@ export default function ModelsDiscoveryPage() {
 
         {/* Content Area */}
         <div className="flex-1 w-full space-y-6">
-          {/* Controls Bar: Mobile filter button, Active chips, Sort */}
+          {/* Controls Bar: Item count and Sort */}
           <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setMobileFilterOpen(true)}
-                  className="lg:hidden text-xs gap-1.5"
-                >
-                  <Filter className="w-3.5 h-3.5 text-[var(--accent)]" />
-                  <span>Filters {activeFilterCount > 0 ? `(${activeFilterCount})` : ""}</span>
-                </Button>
-                <span className="text-xs text-[var(--secondary-text)] font-medium">
-                  {isLoading ? (
-                    "Loading catalogue..."
-                  ) : (
-                    <>
-                      Found{" "}
-                      <span className="font-semibold text-[var(--primary-text)]">
-                        {pagination.total}
-                      </span>{" "}
-                      {pagination.total === 1 ? "model" : "models"}
-                    </>
-                  )}
-                </span>
-              </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-[var(--secondary-text)] font-medium">
+                {isLoading ? (
+                  "Loading catalogue..."
+                ) : (
+                  <>
+                    Found{" "}
+                    <span className="font-semibold text-[var(--primary-text)]">
+                      {pagination.total}
+                    </span>{" "}
+                    {pagination.total === 1 ? "model" : "models"}
+                  </>
+                )}
+              </span>
 
-              <SortSelect value={sort} onChange={handleSortChange} />
+              <div className="shrink-0">
+                <SortSelect value={sort} onChange={handleSortChange} />
+              </div>
             </div>
 
             {/* Active Filter Chips */}
